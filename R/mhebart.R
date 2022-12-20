@@ -73,6 +73,12 @@ mhebart <- function(formula,
   # data    <- dplyr::select(data, c(!!response_name, !!names_x, "group"))
   names(data)[names(data) %in% group_variables] <- grouping_variables_names
   
+  data <- data |> 
+    dplyr::mutate_if(is.character, stringr::str_squish) |> 
+    dplyr::mutate_if(is.character, stringr::str_to_lower) |>
+    dplyr::mutate_if(is.character, abjutils::rm_accent) |> 
+    dplyr::mutate_if(is.character, ~stringr::str_replace(.x, " ", "_"))
+  
   mf <- stats::model.frame(formula_int, data = data)
   X <- as.matrix(stats::model.matrix(formula_int, mf))
   y <- stats::model.extract(mf, "response")
@@ -94,7 +100,7 @@ mhebart <- function(formula,
   #sigma_phi <- inits$sigma_phi
   #tau_phi   <- 1 / (sigma_phi^2)
   log_lik   <- 0
-
+  
   # Tree numbers 
   initial <- round(num_trees/n_grouping_variables)
   n_trees <- seq(initial, num_trees, by = initial)
@@ -186,28 +192,32 @@ mhebart <- function(formula,
   curr_trees  <- list()
   predictions <- list()
   
-  for(i in 1:n_grouping_variables){
+  for(n_g in 1:n_grouping_variables){
     
-    groups <- data[, grouping_variables_names[i]]
+    groups <- data[, grouping_variables_names[n_g]]
+    if(!is.vector(groups)){
+      groups <- dplyr::pull(groups, !!grouping_variables_names[n_g])
+    }
     
-    M_all[[i]] <- stats::model.matrix(~ factor(groups) - 1)
-    group_sizes_all[[i]] <- table(groups)
-    num_groups_all[i]  <- length(group_sizes_all[[i]])
-    num_trees <- n_trees[i]
+    M_all[[n_g]] <- stats::model.matrix(~ factor(groups) - 1)
+    group_sizes_all[[n_g]] <- table(groups)
+    num_groups_all[n_g]  <- length(group_sizes_all[[n_g]])
+    num_trees <- n_trees[n_g]
   
   # Create a list of trees for the initial stump
-    curr_trees[[i]] <- create_stump(
+    curr_trees[[n_g]] <- create_stump(
       num_trees = initial,
       groups = groups,
       y = y_scale,
       X = X
     )
-    predictions[[i]] <- get_group_predictions(
-      curr_trees[[i]], X, groups, 
+    predictions[[n_g]] <- get_group_predictions(
+      trees = curr_trees[[n_g]], X, groups, 
       single_tree = num_trees == 1, 
       old_groups = groups)
     
   }
+  
   
   # Set up a progress bar
   pb <- utils::txtProgressBar(
@@ -226,12 +236,13 @@ mhebart <- function(formula,
         curr <- (i - burn) / thin
         tree_store[[curr]] <- curr_trees
         sigma_store[curr] <- sigma
-        y_hat_store[curr, ] <- predictions
+        y_hat_store[curr, ] <- predictions_all
         #log_lik_store[curr] <- log_lik
         sigma_phi_store[[curr]] <- sigma_phi
         tau_store[curr] <- tau
         mse_store[curr] <- mse 
       }
+    
     
     for(n_g in 1:n_grouping_variables){  
       #groups <- data[, grouping_variables_names[n_g]]
@@ -249,20 +260,27 @@ mhebart <- function(formula,
         if (num_trees > 1) {
           if(n_g == 1){
             groups <- data[, grouping_variables_names[n_g]]
-          partial_trees <- curr_trees[[n_g]]
-          partial_trees[[j]] <- NULL # Blank out that element of the list
-          current_partial_residuals <- y_scale -
-            get_group_predictions(
-              trees = partial_trees, X, groups,
-              single_tree = num_trees == 2, 
-              old_groups = groups
-            )
+            if(!is.vector(groups)){
+              groups <- dplyr::pull(groups, !!grouping_variables_names[n_g])
+            }
+            partial_trees <- curr_trees[[n_g]]
+            partial_trees[[j]] <- NULL # Blank out that element of the list
+            current_partial_residuals <- y_scale -
+              get_group_predictions(
+                trees = partial_trees, X, groups,
+                single_tree = num_trees == 2, 
+                old_groups = groups
+              )
           } else {
-
+            
             current_predictions_all <- vector(length = length(y_scale))
             for(n_g_i in 1:n_g){
               partial_trees <- curr_trees[[n_g_i]]
               groups <- data[, grouping_variables_names[n_g_i]]
+              if(!is.vector(groups)){
+                groups <- dplyr::pull(groups, !!grouping_variables_names[n_g_i])
+              }
+              
               partial_trees[[j]] <- NULL # Blank out that element of the list
               res_predictions    <- get_group_predictions(
                 trees = partial_trees, X, groups,
@@ -375,6 +393,10 @@ mhebart <- function(formula,
     for(n_g in 1:n_grouping_variables){
       
       groups <- data[, grouping_variables_names[n_g]]
+      if(!is.vector(groups)){
+        groups <- dplyr::pull(groups, !!grouping_variables_names[n_g])
+      }
+      
       curr_trees_ng <- curr_trees[[n_g]]
       
       # Update tau_phi
@@ -401,7 +423,11 @@ mhebart <- function(formula,
       
   } # End iterations loop
   cat("\n") # Make sure progress bar ends on a new line
-
+  final_groups <- list()
+  for(n_g in 1:n_grouping_variables){
+    final_groups[[n_g]] <-  dplyr::pull(unique(data[, grouping_variables_names[n_g]]), 1)
+  }
+  
   result <- list(
     trees = tree_store,
     sigma = sigma_store,
@@ -412,7 +438,7 @@ mhebart <- function(formula,
     mse = mse_store, 
     y = y,
     X = X,
-    groups = unique(groups), 
+    groups = final_groups, 
     iter = iter,
     burn = burn,
     thin = thin,
@@ -424,8 +450,10 @@ mhebart <- function(formula,
   )
 
   # RMSE calculation
-  pred <- predict_hebart(newX = data, new_groups = groups, 
-                         hebart_posterior = result, type = "mean")
+  pred <- predict_mhebart(
+    newX = data, group_variables = group_variables, 
+    hebart_posterior = result, type = "mean")
+  
   mse <- mean((pred - y)^2)
   rmse <- sqrt(mse)
   r.squared <- 1 - mse / stats::var(y)

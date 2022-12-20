@@ -1,6 +1,6 @@
-Package: hebartBase
+Package: mhebart
 Type: Package
-Title: Hierachical Embedded Bayesian Additive Regression Trees
+Title: Multiple-Hierachical Embedded Bayesian Additive Regression Trees
 Version: 0.1.0
 Author: Bruna Wundervald, Andrew Parnell
 Maintainer: Bruna Wundervald <brunadaviesw@gmail.com>

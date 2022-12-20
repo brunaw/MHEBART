@@ -128,7 +128,7 @@ get_group_predictions <- function(trees, X, groups, single_tree = FALSE,
 }
 
 
-#' @name predict_hebart
+#' @name predict_mhebart
 #' @author Bruna Wundervald, \email{brunadaviesw@gmail.com}, Andrew Parnell
 #' @export
 #' @title HEBART Predictions
@@ -138,8 +138,13 @@ get_group_predictions <- function(trees, X, groups, single_tree = FALSE,
 #' @param hebart_posterior The posterior values from the model
 #' @param type The prediction type ("all", "median" or "mean")
 # Predict function --------------------------------------------------------
-predict_hebart <- function(newX, new_groups, hebart_posterior,
+predict_mhebart <- function(newX, group_variables, hebart_posterior,
                            type = c("all", "median", "mean")) {
+  
+  
+  n_grouping_variables <- length(group_variables)
+  grouping_variables_names <- paste0("group_", 1:n_grouping_variables)
+  
   # Create predictions based on a new feature matrix
   # Note that there is minimal error checking in this - newX needs to be right!
   if(!is.data.frame(newX)){
@@ -151,17 +156,10 @@ predict_hebart <- function(newX, new_groups, hebart_posterior,
   new_formula <- paste0("~", paste0(names_x, collapse = "+"))
   new_formula <- stats::as.formula(new_formula)
   formula_int <- stats::as.formula(paste(c(new_formula), "- 1"))
+  names(newX)[names(newX) %in% group_variables] <- grouping_variables_names
+  
   mf   <- stats::model.frame(formula_int,  data = newX)
-  newX <- as.matrix(stats::model.matrix(formula_int, mf))
-  old_groups <- hebart_posterior$groups
-#   if(is.data.frame(newX)){
-#     newX <- matrix(newX[, names_x], ncol = length(names_x))
-#   }
-#   
-#   if(ncol(newX) != length(names_x)){
-#     stop("Please use a matrix with the same \
-# number of covariates used during training")
-#   }
+  newX_mat <- as.matrix(stats::model.matrix(formula_int, mf))
   
 
   # Create holder for predicted values
@@ -170,31 +168,46 @@ predict_hebart <- function(newX, new_groups, hebart_posterior,
                       nrow = n_its,
                       ncol = nrow(newX)
   )
+  out <- list()
   
   # Now loop through iterations and get predictions
-  for (i in 1:n_its) {
-    # Get current set of trees
-    curr_trees <- hebart_posterior$trees[[i]]
-    # Use get_predictions function to get predictions
-    # y_hat_mat[i, ] <- get_predictions(curr_trees,
-    #                                         newX,
-    #                                         single_tree = length(curr_trees) == 1
-    # )
-    y_hat_mat[i, ] <- get_group_predictions(trees = curr_trees,
-                                            X = newX,
-                                            groups = new_groups,
-                                            single_tree = length(curr_trees) == 1,
-                                            old_groups = old_groups
+  for(n_g in 1:n_grouping_variables){
+    new_groups <- newX[, grouping_variables_names[n_g]]
+    if(!is.vector(new_groups)){
+      new_groups <- dplyr::pull(new_groups, !!grouping_variables_names[n_g])
+    }
+    
+    old_groups <- hebart_posterior$groups[[n_g]]
+    
+    for (i in 1:n_its) {
+      # Get current set of trees
+      curr_trees <- hebart_posterior$trees[[i]][[n_g]]
+      
+      # Use get_predictions function to get predictions
+      # y_hat_mat[i, ] <- get_predictions(curr_trees,
+      #                                         newX,
+      #                                         single_tree = length(curr_trees) == 1
+      # )
+      y_hat_mat[i, ] <- get_group_predictions(trees = curr_trees,
+                                              X = newX_mat,
+                                              groups = new_groups,
+                                              single_tree = length(curr_trees) == 1,
+                                              old_groups = old_groups
+      )
+    }
+    
+    # Sort out what to return
+    inv_scale <- function(x) (x + 0.5) * (hebart_posterior$y_max - hebart_posterior$y_min) + hebart_posterior$y_min
+    out[[n_g]] <- switch(type,
+                  all = inv_scale(y_hat_mat),
+                  mean = apply(inv_scale(y_hat_mat), 2, "mean"),
+                  median = apply(inv_scale(y_hat_mat), 2, "median")
     )
+    
   }
   
-  # Sort out what to return
-  inv_scale <- function(x) (x + 0.5) * (hebart_posterior$y_max - hebart_posterior$y_min) + hebart_posterior$y_min
-  out <- switch(type,
-                all = inv_scale(y_hat_mat),
-                mean = apply(inv_scale(y_hat_mat), 2, "mean"),
-                median = apply(inv_scale(y_hat_mat), 2, "median")
-  )
+  out <- as.vector(colMeans(do.call(rbind.data.frame, out)))
   
   return(out)
-} # end of predict function
+  } # end of predict function
+  
