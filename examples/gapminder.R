@@ -37,7 +37,7 @@ formula        <- y ~ X1 + X4 + X3
 hb_model <- mhebart(formula,
                    data           = train,
                    group_variables = group_variables, 
-                   num_trees = 8,
+                   num_trees = num_trees,
                    priors = list(
                      alpha = 0.95, # Prior control list
                      beta = 2,
@@ -50,11 +50,12 @@ hb_model <- mhebart(formula,
                    ), 
                    inits = list(tau = 1,
                                 sigma_phi = 1),
-                   MCMC = list(iter = 1000, 
-                               burn = 250, 
+                   MCMC = list(iter = 1250, 
+                               burn = 50, 
                                thin = 1,
                                sigma_phi_sd = 2)
                    )
+hb_model
 pp <- predict_mhebart(newX = test, group_variables, 
                       hebart_posterior = hb_model, type = "mean")
 rmse_mhebart <-  sqrt(mean((pp - test$y)^2))

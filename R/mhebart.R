@@ -160,7 +160,7 @@ mhebart <- function(formula,
   #---------------------------------------------------------------------
   shape_sigma_phi <- vector(length = n_grouping_variables)
   scale_sigma_phi <- vector(length = n_grouping_variables)
-  sigma_phi <- rep(0.1, n_grouping_variables)
+  sigma_phi <- rep(1, length = n_grouping_variables)
   tau_phi <-  1 / (sigma_phi^2)
   
   for(i in 1:n_grouping_variables){
@@ -251,7 +251,7 @@ mhebart <- function(formula,
       num_trees <-  initial
       M <- M_all[[n_g]]
       group_sizes <- group_sizes_all[[n_g]]
-      num_groups  <- num_groups[n_g]
+      num_groups  <- num_groups_all[n_g]
       predictions_all <- vector(length = length(y))
         
       # Start looping through trees
@@ -356,7 +356,7 @@ mhebart <- function(formula,
           R = current_partial_residuals,
           groups,
           tau,
-          tau_phi[n_g],
+          tau_phi = tau_phi[n_g],
           M,
           num_trees
         )
@@ -365,11 +365,12 @@ mhebart <- function(formula,
       if (any(curr_trees[[n_g]][[j]]$tree_matrix[, "node_size"] < node_min_size)) browser()
     } # End loop through trees
       
-      preds <- get_group_predictions(curr_trees[[n_g]], 
-                                     X, 
-                                     groups, 
-                                     single_tree = num_trees == 1,
-                                     old_groups = groups
+      preds <- get_group_predictions(
+        trees = curr_trees[[n_g]], 
+        X, 
+        groups, 
+        single_tree = num_trees == 1,
+        old_groups = groups
       )
       
       predictions_all <- predictions_all + preds 
@@ -425,7 +426,11 @@ mhebart <- function(formula,
   cat("\n") # Make sure progress bar ends on a new line
   final_groups <- list()
   for(n_g in 1:n_grouping_variables){
-    final_groups[[n_g]] <-  dplyr::pull(unique(data[, grouping_variables_names[n_g]]), 1)
+    groups_final <- unique(data[, grouping_variables_names[n_g]])
+    if(!is.vector(groups_final)){
+      groups_final <- dplyr::pull(groups_final, 1)
+    }
+    final_groups[[n_g]] <-  unique(groups_final)
   }
   
   result <- list(

@@ -65,8 +65,8 @@ hb_model <- mhebart(formula = y ~ x,
                    ), 
                    inits = list(tau = 1,
                                 sigma_phi = 1),
-                   MCMC = list(iter = 750, 
-                               burn = 250, 
+                   MCMC = list(iter = 50, 
+                               burn = 25, 
                                thin = 1,
                                sigma_phi_sd = 0.5)
 )

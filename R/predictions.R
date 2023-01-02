@@ -111,18 +111,23 @@ get_group_predictions <- function(trees, X, groups, single_tree = FALSE,
     # Do a recursive call to the function
     partial_trees <- trees
     partial_trees[[1]] <- NULL # Blank out that element of the list
-    predictions <- get_group_predictions(trees = trees[[1]], X_old, groups, single_tree = TRUE, old_groups = old_groups) +
+    predictions <- get_group_predictions(trees = trees[[1]], X = X_old, 
+                                         groups = groups, 
+                                         single_tree = TRUE, 
+                                         old_groups = old_groups) +
       get_group_predictions(partial_trees, X_old, groups,
                             single_tree = length(partial_trees) == 1,
                             old_groups = old_groups
       )
   }
   
-  if(exists("pred_new")){
-    final <- data.frame(ind = c(inds_new, inds_old), 
-                        predictions = pred_new, predictions)
-    predictions <- final$predictions
-  }
+  #if(exists("pred_new")){
+  #  final <- data.frame(ind = c(inds_new, inds_old), 
+                       # predictions = pred_new)
+  #} else {
+   # final <- data.frame(ind = 1:length(predictions), 
+     #                   predictions = predictions)
+    #}
   
   return(predictions)
 }
@@ -139,7 +144,7 @@ get_group_predictions <- function(trees, X, groups, single_tree = FALSE,
 #' @param type The prediction type ("all", "median" or "mean")
 # Predict function --------------------------------------------------------
 predict_mhebart <- function(newX, group_variables, hebart_posterior,
-                           type = c("all", "median", "mean")) {
+                            type = c("all", "median", "mean")) {
   
   
   n_grouping_variables <- length(group_variables)
@@ -161,7 +166,7 @@ predict_mhebart <- function(newX, group_variables, hebart_posterior,
   mf   <- stats::model.frame(formula_int,  data = newX)
   newX_mat <- as.matrix(stats::model.matrix(formula_int, mf))
   
-
+  
   # Create holder for predicted values
   n_its <- length(hebart_posterior$sigma)
   y_hat_mat <- matrix(NA,
@@ -199,9 +204,9 @@ predict_mhebart <- function(newX, group_variables, hebart_posterior,
     # Sort out what to return
     inv_scale <- function(x) (x + 0.5) * (hebart_posterior$y_max - hebart_posterior$y_min) + hebart_posterior$y_min
     out[[n_g]] <- switch(type,
-                  all = inv_scale(y_hat_mat),
-                  mean = apply(inv_scale(y_hat_mat), 2, "mean"),
-                  median = apply(inv_scale(y_hat_mat), 2, "median")
+                         all = inv_scale(y_hat_mat),
+                         mean = apply(inv_scale(y_hat_mat), 2, "mean"),
+                         median = apply(inv_scale(y_hat_mat), 2, "median")
     )
     
   }
@@ -209,5 +214,4 @@ predict_mhebart <- function(newX, group_variables, hebart_posterior,
   out <- as.vector(colMeans(do.call(rbind.data.frame, out)))
   
   return(out)
-  } # end of predict function
-  
+} # end of predict function

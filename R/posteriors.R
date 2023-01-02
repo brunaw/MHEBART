@@ -160,12 +160,14 @@ simulate_phi_hebart <- function(tree, R, groups, tau, tau_phi, M, num_trees) {
   # Get the group means in each terminal node
   # Doing this with loops but probably can be faster
   for (i in 1:length(nj)) {
+    
     curr_R <- R[tree$node_indices == which_terminal[i]]
     curr_mu <- tree$tree_matrix[which_terminal[i], "mu"]
     curr_M <- M[tree$node_indices == which_terminal[i], , drop = FALSE]
     Prec_bit <- tau*crossprod(curr_M) + num_trees * tau_phi * diag(num_groups)
-    mean <- solve(Prec_bit, tau * t(curr_M)%*%curr_R + rep(num_trees * tau_phi * curr_mu,
-                                                           num_groups))
+    mean <- solve(Prec_bit, tau * t(curr_M)%*%curr_R + 
+                    rep(num_trees * tau_phi * curr_mu, num_groups))
+    
     tree$tree_matrix[which_terminal[i], 
                      sort(group_col_names)] <- mvnfast::rmvn(1,
                                                              mu = mean,
