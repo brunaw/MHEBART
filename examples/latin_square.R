@@ -44,7 +44,7 @@ data = df
 #dataList.2 <- list(N=length(y),y=y,x=x.centered,n_eth=n.eth,n_age=n.age,eth=eth.ok,age=age[ok])
 
 M1 <- lmer (y ~ x.centered + (1 + x.centered | eth.ok) + (1 + x.centered | age.ok))
-pp <- predict(M1)
+pp_lme <- predict(M1)
 mse <- mean((pp - y)^2)
 rmse_lmer <- sqrt(mse)
 
@@ -52,7 +52,7 @@ rmse_lmer <- sqrt(mse)
 hb_model <- mhebart(formula = y ~ x,
                    data = df,
                    group_variables = c("eth", "age"), 
-                   num_trees = 10,
+                   num_trees = 14,
                    priors = list(
                      alpha = 0.95, # Prior control list
                      beta = 2,
@@ -65,8 +65,8 @@ hb_model <- mhebart(formula = y ~ x,
                    ), 
                    inits = list(tau = 1,
                                 sigma_phi = 1),
-                   MCMC = list(iter = 50, 
-                               burn = 25, 
+                   MCMC = list(iter = 500, 
+                               burn = 100, 
                                thin = 1,
                                sigma_phi_sd = 0.5)
 )
@@ -74,11 +74,14 @@ pp <- predict_mhebart(newX = df, c("eth", "age"),
                      hebart_posterior = hb_model, type = "mean")
 rmse_mhebart <-  sqrt(mean((pp - df$y)^2))
 df$preds <- pp
+df$lme <- pp_lme
 df |> 
   ggplot(aes(x.centered, y)) +
   geom_point() +
   geom_line(aes(y = preds), colour = 'red') + 
   geom_point(aes(y = preds), colour = 'red') + 
+  geom_line(aes(y = lme), colour = 'blue') + 
+  geom_point(aes(y = lme), colour = 'blue') + 
   facet_wrap(~age+eth) +
   ggtitle(paste0("MHEBART RMSE:", round(rmse_mhebart, 2), 
                  ",\nLMER RMSE:", round(rmse_lmer, 2)))

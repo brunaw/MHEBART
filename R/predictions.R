@@ -146,7 +146,9 @@ get_group_predictions <- function(trees, X, groups, single_tree = FALSE,
 predict_mhebart <- function(newX, group_variables, hebart_posterior,
                             type = c("all", "median", "mean")) {
   
-  
+  newX <- newX |> 
+    dplyr::mutate_if(is.factor, as.character)
+    
   n_grouping_variables <- length(group_variables)
   grouping_variables_names <- paste0("group_", 1:n_grouping_variables)
   

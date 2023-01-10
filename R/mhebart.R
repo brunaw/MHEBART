@@ -74,6 +74,7 @@ mhebart <- function(formula,
   names(data)[names(data) %in% group_variables] <- grouping_variables_names
   
   data <- data |> 
+    dplyr::mutate_if(is.factor, as.character) |> 
     dplyr::mutate_if(is.character, stringr::str_squish) |> 
     dplyr::mutate_if(is.character, stringr::str_to_lower) |>
     dplyr::mutate_if(is.character, abjutils::rm_accent) |> 

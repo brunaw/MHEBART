@@ -24,10 +24,10 @@ df_real$X4 <- log(df_real$X4)
 conts <- c("Americas", "Europe", "Africa")
 df_real <- df_real |> filter(continent %in% conts)
 years       <- unique(df_real$X1)
-to_remove   <- sample(years, 15)
+to_remove   <- sample(years, 10)
 train       <- df_real |> filter(!(X1 %in% to_remove))
 test        <- df_real |> filter(X1 %in% to_remove)
-num_trees   <- 14
+num_trees   <- 20
 
 # Model parameters -----------------------------------
 group_variables <-  c("country", "continent")
