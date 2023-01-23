@@ -27,7 +27,7 @@ mhebart <- function(formula,
                    
                    # X is the feature matrix, y is the target,
                    # groups, # groups is the group number of each obs
-                   num_trees = 10, # Number of trees
+                   num_trees = 14, # Number of trees
                    control = list(node_min_size = 5), # Size of smallest nodes
                    priors = list(
                      alpha = 0.95, # Prior control list
@@ -45,8 +45,8 @@ mhebart <- function(formula,
                      sigma_phi = 1
                    ), # Initial values list
                    MCMC = list(
-                     iter = 250, # Number of iterations
-                     burn = 50, # Size of burn in
+                     iter = 25, # Number of iterations
+                     burn = 5, # Size of burn in
                      thin = 1,
                      sigma_phi_sd = 2
                    )) {
@@ -226,9 +226,10 @@ mhebart <- function(formula,
     style = 3, width = 60,
     title = "Running rBART..."
   )
-
+  
   # Start the iterations loop
   for (i in 1:iter) {
+    
     utils::setTxtProgressBar(pb, i)
     
       
@@ -416,12 +417,6 @@ mhebart <- function(formula,
       
     }
     sigma_phi_store[[i]] <- sigma_phi
-
-    # Get the overall log likelihood
-    #Omega_y <- diag(n)/tau + tcrossprod(S1)/(num_trees * tau_phi) + 
-    #  tcrossprod(S2)/tau_mu
-    #log_lik <- mvnfast::dmvn(
-    #  y, rep(0, n), Omega_y, log = TRUE)
       
   } # End iterations loop
   cat("\n") # Make sure progress bar ends on a new line
