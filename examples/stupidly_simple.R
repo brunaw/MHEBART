@@ -7,12 +7,12 @@
 
 # Clear workspace and load in packages
 library(tidyverse)
+library(firatheme)
 devtools::load_all(".")
 
 # Create this data set
-simulate_tree <- function(x){
+simulate_tree <- function(x, n = 500){
   #set.seed(123)
-  n <- 400
   x <- runif(n)
   groups <- factor(rep(1:3, length = n))
   mu <- rep(0, n)
@@ -29,29 +29,29 @@ simulate_tree <- function(x){
   y <- rnorm(n, phi, res_sd)
   
   train <- data.frame(
-    y = y[1:200], 
-    x = x[1:200],
-    groups = groups[1:200]
+    y = y[1:(n/2)], 
+    x = x[1:(n/2)],
+    groups = groups[1:(n/2)]
   )
   test <- data.frame(
-    y = y[201:400], 
-    x = x[201:400],
-    groups = groups[201:400]
+    y = y[(n/2+1):n], 
+    x = x[(n/2+1):n],
+    groups = groups[(n/2+1):n]
   )
   
   
   #set.seed(321)
   x <- runif(n)
-  groups <- factor(rep(1:3, length = n))
+  groups <- factor(rep(1:5, length = n))
   mu <- rep(0, n)
   mu[x<0.85] <- -3
   mu[x<0.4] <- 8
   phi <- rep(NA, length = n)
-  phi_tn1 <- c(7, -2, -10)
+  phi_tn1 <- c(7, -2, -10, 2, 5)
   phi[mu == -3] <- phi_tn1[groups[mu == -3]]
-  phi_tn2 <- c(8, 15, 7)
+  phi_tn2 <- c(8, 15, 7, 4, -1)
   phi[mu == 8] <- phi_tn2[groups[mu == 8]]
-  phi_tn3 <- c(-2, 0, 2)
+  phi_tn3 <- c(-2, 0, 2, 20, 4)
   phi[mu == 0] <- phi_tn3[groups[mu == 0]]
   # qplot(x, phi, colour = groups)
   res_sd <- 1
@@ -59,14 +59,14 @@ simulate_tree <- function(x){
   
   
   train2 <- data.frame(
-    y = y[1:200], 
-    x = x[1:200],
-    groups = groups[1:200]
+    y = y[1:(n/2)], 
+    x = x[1:(n/2)],
+    groups = groups[1:(n/2)]
   )
   test2 <- data.frame(
-    y = y[201:400], 
-    x = x[201:400],
-    groups = groups[201:400]
+    y = y[(n/2+1):n], 
+    x = x[(n/2+1):n],
+    groups = groups[(n/2+1):n]
   )
   
   train3 <- data.frame(
@@ -132,11 +132,14 @@ predict_test <- function(model, test){
                         group_variables = c("group_1", "group_2"),
                         hebart_posterior  = model, 
                         type = "mean")
-  sqrt(mean((pp - test$y)^2))
+  rmse <- sqrt(mean((pp - test$y)^2))
+  return(list(pred = pp, rmse = rmse))
 }
 
 data_model2 <- data_model |> 
-  mutate(rmse = map2_dbl(model, test, predict_test))
+  mutate(mh = map2(model, test, predict_test), 
+         pred_mh = map(mh, "pred"), 
+         rmse_hm = map_dbl(mh, "rmse"))
 
 #cor(pp, test$y)
 #qplot(test$y, pp) + geom_abline()
@@ -145,16 +148,54 @@ predict_lme <- function(train, test){
   lme_ss <- lme4::lmer(y ~ x1 + x2 + (1|group_1) + (1|group_2), train)
   pplme <- predict(lme_ss, test)
   rmse_lmer <- sqrt(mean((pplme - test$y)^2)) # 6.64
-  rmse_lmer
+  return(list(pred = pplme, rmse = rmse_lmer))
 }
 
 data_model3 <- data_model2 |> 
-  mutate(rmse_lme = map2_dbl(train, test, predict_lme))
+  mutate(lme = map2(train, test, predict_lme), 
+         pred_lme = map(lme, "pred"), 
+         rmse_lme = map_dbl(lme, "rmse"))
 
-summary(data_model3$rmse)
+write_rds(data_model3, file = "results/simple_example.rds")
+summary(data_model3$rmse_hm)
 summary(data_model3$rmse_lme)
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
+# Plots 
 
-cor(pplme, test$y) # 0.936175
-rmse_lmer
+
+summary_preds <- preds |> 
+  dplyr::select(id, pred_hebart, pred_bart, pred_lme) |> 
+  tidyr::unnest(c(pred_hebart, pred_bart, pred_lme), 
+                names_repair = "unique")
+
+rmses <- summary_preds |> 
+  dplyr::group_by(id) |> 
+  dplyr::summarise(
+    rmse_hebart = rmse(pred_hebart, real_hebart),
+    rmse_bart = rmse(pred_bart, real_bart),
+    rmse_lme = rmse(pred_lme, real_lme)
+  ) |> 
+  tidyr::pivot_longer(cols = c(rmse_hebart, rmse_bart, rmse_lme)) 
+
+
+
+data_model3 |>
+  select(rmse_hm, rmse_lme) |> 
+  tidyr::pivot_longer(cols = c(rmse_hm, rmse_lme)) |> 
+  mutate(name = str_remove(name, "rmse\\_"), 
+         name = str_replace(name, "hm", "CRF-HEBART"),
+         name = str_to_upper(name)) |> 
+  ggplot(aes(y = value, x = name)) +
+  geom_boxplot(fill = "#F96209", alpha = 0.7) +
+  #facet_wrap(~type, scales = 'free') +
+  labs(y = "Estimated test RMSE", 
+       x = 'Algorithms'
+       #title = paste0("RMSE\nHE-BART: ", rss_hbart, ", LME: ", rss_lme)
+  ) + 
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 5)) +
+  theme_fira()
+ggsave(file = "paper/boxplot_simulated.png",
+       width = 4, height = 3)
+#----------------------------------------------------------------------
+#----------------------------------------------------------------------

@@ -65,16 +65,19 @@ hb_model <- mhebart(formula = y ~ x,
                    ), 
                    inits = list(tau = 1,
                                 sigma_phi = 1),
-                   MCMC = list(iter = 500, 
-                               burn = 100, 
+                   MCMC = list(iter = 5, 
+                               burn = 1, 
                                thin = 1,
                                sigma_phi_sd = 0.5)
 )
+hb_model
 pp <- predict_mhebart(newX = df, c("eth", "age"), 
                      hebart_posterior = hb_model, type = "mean")
+
 rmse_mhebart <-  sqrt(mean((pp - df$y)^2))
 df$preds <- pp
 df$lme <- pp_lme
+
 df |> 
   ggplot(aes(x.centered, y)) +
   geom_point() +
