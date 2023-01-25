@@ -427,6 +427,7 @@ mhebart <- function(formula,
       groups_final <- dplyr::pull(groups_final, 1)
     }
     final_groups[[n_g]] <-  unique(groups_final)
+    names(final_groups)[n_g] <- group_variables[n_g]
   }
   
   result <- list(
@@ -451,6 +452,7 @@ mhebart <- function(formula,
   )
 
   # RMSE calculation
+  names(data)[names(data) %in% grouping_variables_names] <- group_variables
   pred <- predict_mhebart(
     newX = data, group_variables = group_variables, 
     hebart_posterior = result, type = "mean")

@@ -63,6 +63,9 @@ get_group_predictions <- function(trees, X, groups, single_tree = FALSE,
   
   
   train_groups <- unique(old_groups)
+  if(is.list(train_groups)){
+    train_groups <- unlist(train_groups)
+  }
   new_groups <- unique(groups)
   # Are those new groups?
   which_new <- new_groups[!(new_groups %in% train_groups)]
@@ -154,7 +157,8 @@ predict_mhebart <- function(newX, group_variables, hebart_posterior,
     dplyr::mutate_if(is.character, ~stringr::str_replace(.x, " ", "_"))
     
   n_grouping_variables <- length(group_variables)
-  grouping_variables_names <- paste0("group_", 1:n_grouping_variables)
+  #grouping_variables_names <- paste0("group_", 1:n_grouping_variables)
+  grouping_variables_names <- names(hebart_posterior$groups)
   
   # Create predictions based on a new feature matrix
   # Note that there is minimal error checking in this - newX needs to be right!
@@ -167,7 +171,7 @@ predict_mhebart <- function(newX, group_variables, hebart_posterior,
   new_formula <- paste0("~", paste0(names_x, collapse = "+"))
   new_formula <- stats::as.formula(new_formula)
   formula_int <- stats::as.formula(paste(c(new_formula), "- 1"))
-  names(newX)[names(newX) %in% group_variables] <- grouping_variables_names
+  #names(newX)[names(newX) %in% group_variables] <- grouping_variables_names
   
   mf   <- stats::model.frame(formula_int,  data = newX)
   newX_mat <- as.matrix(stats::model.matrix(formula_int, mf))
@@ -183,12 +187,13 @@ predict_mhebart <- function(newX, group_variables, hebart_posterior,
   
   # Now loop through iterations and get predictions
   for(n_g in 1:n_grouping_variables){
+    
     new_groups <- newX[, grouping_variables_names[n_g]]
     if(!is.vector(new_groups)){
       new_groups <- dplyr::pull(new_groups, !!grouping_variables_names[n_g])
     }
     
-    old_groups <- hebart_posterior$groups[[n_g]]
+    old_groups <- hebart_posterior$groups[grouping_variables_names[n_g]]
     
     for (i in 1:n_its) {
       # Get current set of trees

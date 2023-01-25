@@ -18,12 +18,21 @@ pupils_crossed = lmer(
   + (1|secondary_school_id),
   data = pupils
 )
-
+#View(pupils)
 pplme <- predict(pupils_crossed, pupils)
 rmse_lmer <- sqrt(mean((pplme - pupils$achievement)^2)) # 6.64
 rmse_lmer
 
-num_trees <- 6
+pupils |>
+  mutate(pred = pp) |> 
+  filter(secondary_school_id %in% (1:5)) |> 
+  ggplot(aes(y = achievement, x = ses)) +
+  geom_point() +
+  geom_point(aes(y = pred), colour = 'red') +
+  facet_wrap(~secondary_school_id+sex)
+
+
+num_trees <- 10
 
 hb_model <- mhebart(
   formula = achievement ~ sex + ses,
@@ -42,18 +51,18 @@ hb_model <- mhebart(
   ), 
   inits = list(tau = 1,
                sigma_phi = 0.01),
-  MCMC = list(iter = 50, 
+  MCMC = list(iter = 100, 
               burn = 10, 
               thin = 1,
               sigma_phi_sd = 1)
 )
-
+hb_model
 pp <- predict_mhebart(newX = pupils, 
                       group_variables = c("primary_school_id", "secondary_school_id"),
                       hebart_posterior  = hb_model, 
                       type = "mean")
 rmse <- sqrt(mean((pp - pupils$achievement)^2))
-
+rmse
 
 #-----------------------------------------------------------------------
 # bayes_seed <- 1000
