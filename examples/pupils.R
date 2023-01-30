@@ -8,12 +8,10 @@ library(ggrepel)
 devtools::load_all(".")
 
 load("data/pupils.Rdata")
-pupils
+# pupils
 
 pupils_crossed = lmer(
-  achievement ~ 
-    sex 
-  + ses 
+  achievement ~ 1
   + (1|primary_school_id) 
   + (1|secondary_school_id),
   data = pupils
@@ -23,16 +21,15 @@ pplme <- predict(pupils_crossed, pupils)
 rmse_lmer <- sqrt(mean((pplme - pupils$achievement)^2)) # 6.64
 rmse_lmer
 
-pupils |>
+pupils |> 
   mutate(pred = pp) |> 
-  filter(secondary_school_id %in% (1:5)) |> 
-  ggplot(aes(y = achievement, x = ses)) +
-  geom_point() +
-  geom_point(aes(y = pred), colour = 'red') +
-  facet_wrap(~secondary_school_id+sex)
+  group_by(primary_school_id, secondary_school_id) |> 
+  summarise(y = mean(achievement), 
+            pred = mean(pred),
+            n = n()) |> 
+  View()
 
-
-num_trees <- 10
+num_trees <- 4
 
 hb_model <- mhebart(
   formula = achievement ~ sex + ses,
@@ -51,18 +48,30 @@ hb_model <- mhebart(
   ), 
   inits = list(tau = 1,
                sigma_phi = 0.01),
-  MCMC = list(iter = 100, 
+  MCMC = list(iter = 50, 
               burn = 10, 
               thin = 1,
-              sigma_phi_sd = 1)
+              sigma_phi_sd = 1), 
+  stumps = TRUE
 )
 hb_model
+hb_model$trees[[1]]
+mean(y_scale)
+
 pp <- predict_mhebart(newX = pupils, 
                       group_variables = c("primary_school_id", "secondary_school_id"),
                       hebart_posterior  = hb_model, 
                       type = "mean")
 rmse <- sqrt(mean((pp - pupils$achievement)^2))
 rmse
+
+pupils |>
+  mutate(pred = pp) |>
+  filter(secondary_school_id %in% (1:5), primary_school_id %in% (1:5)) |>
+  ggplot(aes(y = achievement, x = ses)) +
+  geom_point() +
+  geom_point(aes(y = pred), colour = 'red') +
+  facet_wrap(~secondary_school_id+primary_school_id)
 
 #-----------------------------------------------------------------------
 # bayes_seed <- 1000
