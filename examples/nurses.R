@@ -20,10 +20,13 @@ nurses_hierarchical = lmer(
   data = nurses
 )
 
-# nurses |> 
-#   ggplot(aes(y = stress, x = age, groups = sex)) +
-#   geom_point() +
-#   facet_wrap(~hospital+ward)
+nurses |>
+  mutate(pred = pp) |> 
+  filter(hospital %in% (1:5)) |> 
+  ggplot(aes(y = stress, x = age, groups = sex)) +
+  geom_point() +
+  geom_point(aes(y = pred), colour = 'red') +
+  facet_wrap(~hospital+ward)
 
 pplme <- predict(nurses_hierarchical, nurses)
 rmse_lmer <- sqrt(mean((pplme - nurses$stress)^2)) # 6.64
@@ -44,7 +47,7 @@ hb_model <- mhebart(
     beta = 2,
     nu = 2,
     lambda = 0.1,
-    tau_mu = 16 * num_trees,
+    tau_mu = 1, 
     shape_sigma_phi = 0.5,
     scale_sigma_phi = 1, 
     sample_sigma_phi = TRUE

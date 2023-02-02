@@ -12,11 +12,11 @@
 #' @param tau_phi The current value of tau_phi
 #' @param tau_mu The current value of tau_mu
 #' @param M The group matrix
-full_conditional_hebart <- function(tree, R, num_trees, tau, tau_phi, tau_mu, M) {
+full_conditional_hebart <- function(tree, R, num_trees, 
+                                    tau, tau_phi, tau_mu, M) {
   # Function to compute log full conditional distribution for an individual tree
   # R is a vector of partial residuals
-  
-  # hbeart version is
+
   # log_cond = sum (dmv(R, 0, Omega_R, log = TRUE) )
   # where M is the group allocation matrix.
   
@@ -27,6 +27,7 @@ full_conditional_hebart <- function(tree, R, num_trees, tau, tau_phi, tau_mu, M)
   nj <- tree$tree_matrix[which_terminal, "node_size"]
   
   log_cond <- 0
+  
   for (i in 1:length(nj)) {
     M_j <- M[tree$node_indices == which_terminal[i], , drop = FALSE]
     R_j <- R[tree$node_indices == which_terminal[i], drop = FALSE]
@@ -35,8 +36,9 @@ full_conditional_hebart <- function(tree, R, num_trees, tau, tau_phi, tau_mu, M)
     log_cond <- log_cond + mvnfast::dmvn(
       R_j, rep(0, nj[i]), Omega_R, log = TRUE
     )
+    
   }
-  
+
   return(log_cond)
 }
 
@@ -120,9 +122,11 @@ simulate_mu_hebart <- function(tree, R, tau, tau_phi, tau_mu, M, num_trees) {
     ones <- rep(1, nj[i])
     Prec_bit <- t(ones)%*%solve(Psi_R, ones) + tau_mu
     mean <- t(ones)%*%solve(Psi_R, R_j) / Prec_bit
-    tree$tree_matrix[which_terminal[i], "mu"] <- stats::rnorm(1,
-                                                              mean,
-                                                              sd = 1/sqrt(Prec_bit))
+    #tree$tree_matrix[which_terminal[i], "mu"] <- stats::rnorm(1,
+    #                                                          mean,
+    #                                                          sd = 1/sqrt(Prec_bit))
+    #For now
+    tree$tree_matrix[which_terminal[i], "mu"] <- 0
   }
   tree$tree_matrix[which_non_terminal, "mu"] <- NA
   
@@ -168,10 +172,12 @@ simulate_phi_hebart <- function(tree, R, groups, tau, tau_phi, M, num_trees) {
     mean <- solve(Prec_bit, tau * t(curr_M)%*%curr_R + 
                     rep(num_trees * tau_phi * curr_mu, num_groups))
     
-    tree$tree_matrix[which_terminal[i], 
-                     sort(group_col_names)] <- mvnfast::rmvn(1,
-                                                             mu = mean,
-                                                             sigma = solve(Prec_bit))
+    tree$tree_matrix[which_terminal[i], group_col_names] <- mvnfast::rmvn(
+                       1,
+                       mu = mean,
+                       sigma = solve(Prec_bit))
+    # tree$tree_matrix[which_terminal[i], 
+    #                 sort(group_col_names)] <- rep(0, num_groups)
     
   }
   

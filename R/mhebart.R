@@ -34,7 +34,7 @@ mhebart <- function(formula,
                      beta = 2,
                      nu = 2,
                      lambda = 0.1,
-                     tau_mu = 16 * num_trees,
+                     tau_mu = 1,
                      shape_sigma_phi = 0.5,
                      scale_sigma_phi = 1,
                      sample_sigma_phi = TRUE
@@ -49,7 +49,8 @@ mhebart <- function(formula,
                      burn = 5, # Size of burn in
                      thin = 1,
                      sigma_phi_sd = 2
-                   )) {
+                   ),
+                   stumps = FALSE) {
 
   # Handling formula interface
   formula_int <- stats::as.formula(paste(c(formula), "- 1"))
@@ -89,6 +90,7 @@ mhebart <- function(formula,
 
   # Extract hyper-parameters
   alpha  <- priors$alpha # Tree shape parameter 1
+  
   beta   <- priors$beta # Tree shape parameter 2
   tau_mu <- priors$tau_mu # Overall mean precision
   shape_sigma_phi  <- priors$shape_sigma_phi # Weibull prior parameters 
@@ -230,6 +232,7 @@ mhebart <- function(formula,
   # Start the iterations loop
   for (i in 1:iter) {
     
+    
     utils::setTxtProgressBar(pb, i)
     
       
@@ -248,16 +251,17 @@ mhebart <- function(formula,
     
     for(n_g in 1:n_grouping_variables){  
       #groups <- data[, grouping_variables_names[n_g]]
-      
+       
       # Setting this groups'parameters
       num_trees <-  initial
       M <- M_all[[n_g]]
       group_sizes <- group_sizes_all[[n_g]]
       num_groups  <- num_groups_all[n_g]
-      predictions_all <- vector(length = length(y))
-        
+      predictions_all <- rep(0, length = length(y))
+      
       # Start looping through trees
       for (j in 1:num_trees) {
+        
         # Calculate partial residuals for current tree
         if (num_trees > 1) {
           if(n_g == 1){
@@ -273,9 +277,11 @@ mhebart <- function(formula,
                 single_tree = num_trees == 2, 
                 old_groups = groups
               )
+          
           } else {
             
-            current_predictions_all <- vector(length = length(y_scale))
+            current_predictions_all <- rep(0, length = length(y))
+            
             for(n_g_i in 1:n_g){
               partial_trees <- curr_trees[[n_g_i]]
               groups <- data[, grouping_variables_names[n_g_i]]
@@ -283,15 +289,26 @@ mhebart <- function(formula,
                 groups <- dplyr::pull(groups, !!grouping_variables_names[n_g_i])
               }
               
-              partial_trees[[j]] <- NULL # Blank out that element of the list
-              res_predictions    <- get_group_predictions(
-                trees = partial_trees, X, groups,
-                single_tree = num_trees == 2, 
-                old_groups = groups
-              )  
+              if(n_g_i == n_g){
+                partial_trees[[j]] <- NULL # Blank out that element of the list
+                
+                res_predictions    <- get_group_predictions(
+                  trees = partial_trees, X, groups,
+                  single_tree = num_trees == 2, 
+                  old_groups = groups
+                )
+                
+              } else {
+                # Predict for all trees here
+                res_predictions    <- get_group_predictions(
+                  trees = partial_trees, X, groups,
+                  single_tree = num_trees == 1, 
+                  old_groups = groups
+                ) 
+              }
               current_predictions_all <-  current_predictions_all + res_predictions
-              current_partial_residuals <- y_scale - current_predictions_all
             }
+            current_partial_residuals <- y_scale - current_predictions_all
           }
         } else {
           current_partial_residuals <- y_scale
@@ -338,7 +355,9 @@ mhebart <- function(formula,
         
         # If accepting a new tree update all relevant parts
         log.alpha <- (l_new - l_old)
+        
         accept <- log.alpha >= 0 || log.alpha >= log(stats::runif(1))
+        if(stumps){ accept <- FALSE }
         if (accept) curr_trees[[n_g]] <- new_trees
         
         # Update mu whether tree accepted or not
@@ -352,6 +371,7 @@ mhebart <- function(formula,
           num_trees
         )
         
+        
         # Update phi as well
         curr_trees[[n_g]][[j]] <- simulate_phi_hebart(
           tree = curr_trees[[n_g]][[j]],
@@ -362,6 +382,18 @@ mhebart <- function(formula,
           M,
           num_trees
         )
+        
+        
+        if(j > 1){
+          tree <- curr_trees[[n_g]][[j]]
+          group_names <- unique(groups)
+          group_col_names <- paste0("phi", group_names)
+          #which_terminal <- which(tree$tree_matrix[, "terminal"] == 1)
+          which_terminal <- 1
+          tree$tree_matrix[which_terminal,
+                           group_col_names] <- 0
+          curr_trees[[n_g]][[j]] <- tree
+        }
         
       # Check the trees
       if (any(curr_trees[[n_g]][[j]]$tree_matrix[, "node_size"] < node_min_size)) browser()
@@ -385,10 +417,10 @@ mhebart <- function(formula,
     # Update tau
     
     tau <- update_tau(
-      y_scale,
-      predictions_all,
-      nu,
-      lambda
+      y = y_scale,
+      predictions = predictions_all,
+      0.01,
+      1
     )
     sigma <- 1 / sqrt(tau)
 
@@ -407,9 +439,14 @@ mhebart <- function(formula,
       S2 <- create_S(curr_trees_ng)
       
       if(sample_sigma_phi){
+        # sigma_phi[n_g] <- update_sigma_phi(
+        #   y_scale, S1, S2, sigma_phi[n_g], tau_mu, tau,
+        #   shape_sigma_phi[n_g], scale_sigma_phi[n_g], 
+        #   num_trees = initial, sigma_phi_sd
+        # )
         sigma_phi[n_g] <- update_sigma_phi(
           y_scale, S1, S2, sigma_phi[n_g], tau_mu, tau,
-          shape_sigma_phi[n_g], scale_sigma_phi[n_g], 
+          0.01, 1,
           num_trees = initial, sigma_phi_sd
         )
       }
