@@ -150,7 +150,8 @@ simulate_phi_hebart <- function(tree, R, groups, tau, tau_phi, M, num_trees) {
   # Simulate the group mu values for a given tree
   group_names <- unique(groups)
   num_groups <- length(unique(groups))
-  group_col_names <- paste0("phi", group_names)
+  #group_col_names <- paste0("phi", group_names)
+  group_col_names <- fix_group_names(groups)
 
   # First find which rows are terminal nodes
   which_terminal <- which(tree$tree_matrix[, "terminal"] == 1)
@@ -160,7 +161,7 @@ simulate_phi_hebart <- function(tree, R, groups, tau, tau_phi, M, num_trees) {
   nj <- tree$tree_matrix[which_terminal, "node_size"]
   
   #num_groups <- length(unique(groups))
-  
+  num_trees = 1
   # Get the group means in each terminal node
   # Doing this with loops but probably can be faster
   for (i in 1:length(nj)) {
@@ -181,7 +182,7 @@ simulate_phi_hebart <- function(tree, R, groups, tau, tau_phi, M, num_trees) {
     
   }
   
-  tree$tree_matrix[which_non_terminal, sort(group_col_names)] <- NA
+  tree$tree_matrix[which_non_terminal, group_col_names] <- NA
   
   return(tree)
 }
@@ -204,8 +205,8 @@ update_tau <- function(y, predictions, nu, lambda) {
 
   # Update
   tau <- stats::rgamma(1,
-                       shape = (nu + length(y)) / 2,
-                       rate = (S + nu * lambda) / 2
+                       shape = nu + length(y) / 2,
+                       rate = nu * lambda + S / 2
   )
   
   return(tau)
@@ -273,26 +274,33 @@ update_sigma_phi <- function(y, S1, S2, sigma_phi, tau_mu, tau,
     if (new_sigma_phi > 0)
       break
   }
-  log_rat <- stats::pnorm(sigma_phi, sd = sigma_phi_sd, log = TRUE) - stats::pnorm(new_sigma_phi, sd = sigma_phi_sd, log = TRUE)
+  
+  
+  log_rat <- (stats::pnorm(sigma_phi, sd = sigma_phi_sd, log = TRUE) - 
+                stats::pnorm(new_sigma_phi, sd = sigma_phi_sd, log = TRUE))
   new_tau_phi <- 1/(new_sigma_phi^2)
   tau_phi <- 1/(sigma_phi^2)
   
-  n <- length(y)
-  Omega_y_current <- diag(n)/tau + tcrossprod(S1)/(num_trees*tau_phi) + tcrossprod(S2)/tau_mu
-  Omega_y_candidate <- diag(n)/tau + tcrossprod(S1)/(num_trees*new_tau_phi) + tcrossprod(S2)/tau_mu
+  #n <- length(y)
+  #Omega_y_current <- diag(n)/tau + tcrossprod(S1)/(num_trees*tau_phi) + tcrossprod(S2)/tau_mu
+  #Omega_y_candidate <- diag(n)/tau + tcrossprod(S1)/(num_trees*new_tau_phi) + tcrossprod(S2)/tau_mu
   
-  post_current <- mvnfast::dmvn(y, rep(0, n), sigma = Omega_y_current, log = TRUE)
-  post_candidate <- mvnfast::dmvn(y, rep(0, n), sigma = Omega_y_candidate, log = TRUE)
-
-  # Switching to gamma; 
-  prior_current   <- stats::dgamma(sigma_phi,
-                                    shape = shape_sigma_phi,
-                                    scale = scale_sigma_phi, log = TRUE)
-  prior_candidate <- stats::dgamma(new_sigma_phi,
-                                    shape = shape_sigma_phi,
-                                    scale = scale_sigma_phi, log = TRUE)
+  # post_current <- mvnfast::dmvn(y, rep(0, n), sigma = Omega_y_current, log = TRUE)
+  # post_candidate <- mvnfast::dmvn(y, rep(0, n), sigma = Omega_y_candidate, log = TRUE)
+  # 
+  # # Switching to gamma; 
+  # prior_current   <- stats::dgamma(sigma_phi,
+  #                                   shape = shape_sigma_phi,
+  #                                   scale = scale_sigma_phi, log = TRUE)
+  # prior_candidate <- stats::dgamma(new_sigma_phi,
+  #                                   shape = shape_sigma_phi,
+  #                                   scale = scale_sigma_phi, log = TRUE)
   
-  log.alpha <- (post_candidate - post_current) + (prior_candidate - prior_current) + log_rat
+  S1 <- unique(S1)
+  post_current <- sum(dnorm(S1, 0, new_sigma_phi, log = TRUE)) + LaplacesDemon::dhalft(new_sigma_phi, scale = 10, nu = 1, log = TRUE)
+  post_candidate <- sum(dnorm(S1, 0, sigma_phi, log = TRUE)) + LaplacesDemon::dhalft(sigma_phi, scale = 10, nu = 1, log = TRUE)
+  #log.alpha <- (post_candidate - post_current) + (prior_candidate - prior_current) + log_rat
+  log.alpha <- (post_current - post_candidate) + log_rat
 
   accept <- log.alpha >= 0 || log.alpha >= log(stats::runif(1))
   sigma_phi <- ifelse(accept, new_sigma_phi, sigma_phi)

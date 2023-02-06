@@ -60,3 +60,22 @@ sim_friedman <- function(n,
     true_mean = mean, true_scale = scale_err
   ))
 }
+
+#' @name fix_group_names
+#' @author Bruna Wundervald, \email{brunadaviesw@gmail.com}, Andrew Parnell
+#' @export
+#' @description Fixes group names
+#' @param groups The groups vector 
+
+fix_group_names <- function(groups){
+  group_names <- unique(groups)
+  num_groups <- as.numeric(group_names)
+  if(sum(is.na(num_groups)) == 0){
+    group_names <- sort(num_groups)  
+  } else{
+    group_names <- sort(group_names)  
+  }
+  
+  group_col_names <- paste0("phi", group_names)
+  return(group_col_names)
+}

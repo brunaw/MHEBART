@@ -29,6 +29,7 @@ create_stump <- function(num_trees,
 
   group_names     <- unique(groups)
   num_groups      <- length(unique(groups))
+  group_col_names <- fix_group_names(groups)
   # Create holder for trees
   all_trees <- vector("list", length = num_trees)
   # Loop through trees
@@ -55,7 +56,7 @@ create_stump <- function(num_trees,
       "split_variable",
       "split_value",
       "mu",
-      paste0("phi", sort(group_names)),
+      group_col_names,
       "node_size"
     )
 

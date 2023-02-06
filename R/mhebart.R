@@ -249,69 +249,102 @@ mhebart <- function(formula,
       }
     
     
+    predictions_all <- rep(0, length = length(y))
+    
     for(n_g in 1:n_grouping_variables){  
       #groups <- data[, grouping_variables_names[n_g]]
        
       # Setting this groups'parameters
       num_trees <-  initial
+      
       M <- M_all[[n_g]]
       group_sizes <- group_sizes_all[[n_g]]
       num_groups  <- num_groups_all[n_g]
-      predictions_all <- rep(0, length = length(y))
       
       # Start looping through trees
       for (j in 1:num_trees) {
         
         # Calculate partial residuals for current tree
+        # if (num_trees > 1) {
+        #   if(n_g == 1){
+        #     groups <- data[, grouping_variables_names[n_g]]
+        #     if(!is.vector(groups)){
+        #       groups <- dplyr::pull(groups, !!grouping_variables_names[n_g])
+        #     }
+        #     partial_trees <- curr_trees[[n_g]]
+        #     partial_trees[[j]] <- NULL # Blank out that element of the list
+        #     current_partial_residuals <- y_scale -
+        #       get_group_predictions(
+        #         trees = partial_trees, X, groups,
+        #         single_tree = num_trees == 2, 
+        #         old_groups = groups
+        #       )
+        #   
+        #   } else {
+        #     
+        #     current_predictions_all <- rep(0, length = length(y))
+            
+        #     for(n_g_i in 1:n_g){
+        #       partial_trees <- curr_trees[[n_g_i]]
+        #       groups <- data[, grouping_variables_names[n_g_i]]
+        #       if(!is.vector(groups)){
+        #         groups <- dplyr::pull(groups, !!grouping_variables_names[n_g_i])
+        #       }
+        #       
+        #       if(n_g_i == n_g){
+        #         partial_trees[[j]] <- NULL # Blank out that element of the list
+        #         
+        #         res_predictions    <- get_group_predictions(
+        #           trees = partial_trees, X, groups,
+        #           single_tree = num_trees == 2, 
+        #           old_groups = groups
+        #         )
+        #         
+        #       } else {
+        #         # Predict for all trees here
+        #         res_predictions    <- get_group_predictions(
+        #           trees = partial_trees, X, groups,
+        #           single_tree = num_trees == 1, 
+        #           old_groups = groups
+        #         ) 
+        #       }
+        #       current_predictions_all <-  current_predictions_all + res_predictions
+        #     }
+        #     current_partial_residuals <- y_scale - current_predictions_all
+        #   }
+        # } else {
+        #   current_partial_residuals <- y_scale
+        # }
+
+            # Calculate partial residuals for current tree
         if (num_trees > 1) {
-          if(n_g == 1){
-            groups <- data[, grouping_variables_names[n_g]]
+          seq_trees <- seq(1:n_grouping_variables)[-n_g]
+          current_predictions_all <- rep(0, length = length(y))
+          for(n_g_i in seq_trees){ 
+            groups <- data[, grouping_variables_names[n_g_i]]
             if(!is.vector(groups)){
-              groups <- dplyr::pull(groups, !!grouping_variables_names[n_g])
+              groups <- dplyr::pull(groups, !!grouping_variables_names[n_g_i])
             }
-            partial_trees <- curr_trees[[n_g]]
-            partial_trees[[j]] <- NULL # Blank out that element of the list
-            current_partial_residuals <- y_scale -
-              get_group_predictions(
-                trees = partial_trees, X, groups,
-                single_tree = num_trees == 2, 
-                old_groups = groups
-              )
-          
-          } else {
+            partial_trees <- curr_trees[[n_g_i]]
+            #partial_trees[[j]] <- NULL # Blank out that element of the list
+            res_predictions <- get_group_predictions(
+              trees = partial_trees, X, groups,
+              single_tree = num_trees == 1, 
+              old_groups = groups
+            )
             
-            current_predictions_all <- rep(0, length = length(y))
-            
-            for(n_g_i in 1:n_g){
-              partial_trees <- curr_trees[[n_g_i]]
-              groups <- data[, grouping_variables_names[n_g_i]]
-              if(!is.vector(groups)){
-                groups <- dplyr::pull(groups, !!grouping_variables_names[n_g_i])
-              }
-              
-              if(n_g_i == n_g){
-                partial_trees[[j]] <- NULL # Blank out that element of the list
-                
-                res_predictions    <- get_group_predictions(
-                  trees = partial_trees, X, groups,
-                  single_tree = num_trees == 2, 
-                  old_groups = groups
-                )
-                
-              } else {
-                # Predict for all trees here
-                res_predictions    <- get_group_predictions(
-                  trees = partial_trees, X, groups,
-                  single_tree = num_trees == 1, 
-                  old_groups = groups
-                ) 
-              }
-              current_predictions_all <-  current_predictions_all + res_predictions
-            }
-            current_partial_residuals <- y_scale - current_predictions_all
+            current_predictions_all <-  current_predictions_all + res_predictions
           }
+          current_partial_residuals <- y_scale - current_predictions_all
         } else {
           current_partial_residuals <- y_scale
+        }
+        
+        
+        
+        groups <- data[, grouping_variables_names[n_g]]
+        if(!is.vector(groups)){
+          groups <- dplyr::pull(groups, !!grouping_variables_names[n_g])
         }
         
         # Propose a new tree via grow/change/prune/swap
@@ -387,7 +420,7 @@ mhebart <- function(formula,
         if(j > 1){
           tree <- curr_trees[[n_g]][[j]]
           group_names <- unique(groups)
-          group_col_names <- paste0("phi", group_names)
+          group_col_names <- fix_group_names(groups)
           #which_terminal <- which(tree$tree_matrix[, "terminal"] == 1)
           which_terminal <- 1
           tree$tree_matrix[which_terminal,
@@ -399,6 +432,9 @@ mhebart <- function(formula,
       if (any(curr_trees[[n_g]][[j]]$tree_matrix[, "node_size"] < node_min_size)) browser()
     } # End loop through trees
       
+      #n_g = 2
+      #groups <- data[, grouping_variables_names[n_g]]
+      #groups <- groups$group_2
       preds <- get_group_predictions(
         trees = curr_trees[[n_g]], 
         X, 
@@ -410,8 +446,9 @@ mhebart <- function(formula,
       predictions_all <- predictions_all + preds 
     }
     
+    #mean(predictions_all)
     # Calculate full set of predictions
-    
+    #bb <- y_scale - predictions_all
 
     mse <- mean((y_scale - predictions_all)^2)
     # Update tau
@@ -419,9 +456,10 @@ mhebart <- function(formula,
     tau <- update_tau(
       y = y_scale,
       predictions = predictions_all,
-      0.01,
-      1
+      nu = 0.01,
+      lambda  = 1
     )
+    
     sigma <- 1 / sqrt(tau)
 
     
@@ -435,8 +473,16 @@ mhebart <- function(formula,
       curr_trees_ng <- curr_trees[[n_g]]
       
       # Update tau_phi
-      S1 <- create_S(curr_trees_ng, groups)
-      S2 <- create_S(curr_trees_ng)
+      #S1 <- create_S(curr_trees_ng, groups)
+      #S2 <- create_S(curr_trees_ng)
+      
+      S1 <-  get_group_predictions(
+        trees = curr_trees_ng, 
+        X, 
+        groups, 
+        single_tree = num_trees == 1,
+        old_groups = groups
+      )
       
       if(sample_sigma_phi){
         # sigma_phi[n_g] <- update_sigma_phi(
@@ -445,7 +491,7 @@ mhebart <- function(formula,
         #   num_trees = initial, sigma_phi_sd
         # )
         sigma_phi[n_g] <- update_sigma_phi(
-          y_scale, S1, S2, sigma_phi[n_g], tau_mu, tau,
+          y_scale, S1, S2 = 0, sigma_phi = sigma_phi[n_g], tau_mu, tau,
           0.01, 1,
           num_trees = initial, sigma_phi_sd
         )
@@ -453,6 +499,7 @@ mhebart <- function(formula,
       tau_phi[n_g] <- 1 / (sigma_phi[n_g]^2)
       
     }
+    
     sigma_phi_store[[i]] <- sigma_phi
       
   } # End iterations loop

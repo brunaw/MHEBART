@@ -87,7 +87,7 @@ get_group_predictions <- function(trees, X, groups, single_tree = FALSE,
   
   group_names     <- unique(groups)
   num_groups      <- length(unique(groups))
-  group_col_names <- paste0("phi", group_names)
+  group_col_names <- fix_group_names(groups)
   group_col_names_all <- paste0("phi", groups)
   
   # Normally trees will be a list of lists but just in case
