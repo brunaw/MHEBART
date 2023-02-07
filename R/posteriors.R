@@ -145,7 +145,7 @@ simulate_mu_hebart <- function(tree, R, tau, tau_phi, tau_mu, M, num_trees) {
 #' @param tau_phi The current value of tau_phi
 #' @param M The group allocation matrix
 #' @param num_trees The  number of trees
-simulate_phi_hebart <- function(tree, R, groups, tau, tau_phi, M, num_trees) {
+simulate_phi_hebart <- function(tree, R, groups, tau, sigma_phi, M, num_trees) {
   
   # Simulate the group mu values for a given tree
   group_names <- unique(groups)
@@ -166,12 +166,13 @@ simulate_phi_hebart <- function(tree, R, groups, tau, tau_phi, M, num_trees) {
   # Doing this with loops but probably can be faster
   for (i in 1:length(nj)) {
     
+    set.seed(123)
     curr_R <- R[tree$node_indices == which_terminal[i]]
     curr_mu <- tree$tree_matrix[which_terminal[i], "mu"]
     curr_M <- M[tree$node_indices == which_terminal[i], , drop = FALSE]
-    Prec_bit <- tau*crossprod(curr_M) + num_trees * tau_phi * diag(num_groups)
+    Prec_bit <- tau*crossprod(curr_M) + num_trees * (1/(sigma_phi^2)) * diag(num_groups)
     mean <- solve(Prec_bit, tau * t(curr_M)%*%curr_R + 
-                    rep(num_trees * tau_phi * curr_mu, num_groups))
+                    rep(num_trees * (1/(sigma_phi^2)) * curr_mu, num_groups))
     
     tree$tree_matrix[which_terminal[i], group_col_names] <- mvnfast::rmvn(
                        1,

@@ -10,6 +10,15 @@ devtools::load_all(".")
 load("data/pupils.Rdata")
 # pupils
 
+# y <- pupils$achievement
+# y_min <- min(y)
+# y_max <- max(y)
+# y_scale <- (y - y_min)/(y_max - y_min) - 0.5
+# n <- length(y_scale)
+# pupils$achievement = y_scale
+# mean(y_scale)
+
+
 pupils_crossed = lmer(
   achievement ~ 1
   + (1|primary_school_id) 
@@ -18,7 +27,7 @@ pupils_crossed = lmer(
 )
 #View(pupils)
 pplme <- predict(pupils_crossed, pupils)
-rmse_lmer <- sqrt(mean((pplme - pupils$achievement)^2)) # 6.64
+rmse_lmer <- mean((pplme - pupils$achievement)^2) # 6.64
 rmse_lmer
 
 # pupils |> 
@@ -48,20 +57,57 @@ hb_model <- mhebart(
   ), 
   inits = list(tau = 1,
                sigma_phi = 0.01),
-  MCMC = list(iter = 20, 
-              burn = 10, 
+  MCMC = list(iter = 100, 
+              burn = 0, 
               thin = 1,
               sigma_phi_sd = 1), 
   stumps = TRUE
 )
-hb_model
+#hb_model$trees[[2]]
+#hb_model$mse
 
 pp <- predict_mhebart(newX = pupils, 
                       group_variables = c("primary_school_id", "secondary_school_id"),
                       hebart_posterior  = hb_model, 
                       type = "mean")
-rmse <- sqrt(mean((pp - pupils$achievement)^2))
+
+rmse <- mean((pp - pupils$achievement)^2)
+
+rmse <- mean((pp - y_scale)^2)
 rmse
+y <- pupils$achievement
+y_min <- min(y)
+y_max <- max(y)
+y_scale <- (y - y_min)/(y_max - y_min) - 0.5
+
+# mse -> 0.014
+# curr_trees = hb_model$trees[[20]]
+# 
+# predictions_all <- rep(0, length = length(y))
+# 
+# for(n_g in 1:2){
+#   
+#   groups <- data[, grouping_variables_names[n_g]]
+#   if(!is.vector(groups)){
+#     groups <- dplyr::pull(groups, !!grouping_variables_names[n_g])
+#   }
+#   
+#   
+#   preds <- get_group_predictions(
+#     trees = curr_trees[[n_g]], 
+#     X, 
+#     groups, 
+#     single_tree = num_trees == 1,
+#     old_groups = groups
+#   )
+#   
+#   predictions_all <- predictions_all + preds 
+#   
+# }
+# mean((y_scale - predictions_all)^2)
+# mean((pp - predictions_all)^2)
+
+
 
 # pupils |>
 #   mutate(pred = pp) |>

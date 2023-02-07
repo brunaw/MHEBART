@@ -18,13 +18,7 @@ load("data/pupils.Rdata")
 # pupils
 
 # Standardise the pupils data
-y <- pupils$achievement
-y_min <- min(y)
-y_max <- max(y)
-y_scale <- (y - y_min)/(y_max - y_min) - 0.5
-n <- length(y_scale)
-pupils$achievement = y_scale
-mean(y_scale)
+
 # 1. lmer -----------------------------------------------------------------
 
 pupils_lmer <- lmer(
@@ -76,6 +70,7 @@ model_data <- list(
   len_group2 = length(unique(pupils$secondary_school_id))
 )
 
+
 # Run the model
 model <- jags(
   model.file = textConnection(model_string),
@@ -114,16 +109,23 @@ model <- jags(
 # So need parameter updates for tree1, tree2, tau (all Gibbs)
 # And sigma1, sigma2 both MH
 
+y <- pupils$achievement
+y_min <- min(y)
+y_max <- max(y)
+y_scale <- (y - y_min)/(y_max - y_min) - 0.5
+n <- length(y_scale)
+y = y_scale
+
+
 # Set up everything
 set.seed(123)
-num_iter <- 200
-y <- pupils$achievement
+num_iter <- 50
+#y <- pupils$achievement
 M1 <- stats::model.matrix(~ as.factor(pupils$primary_school_id) - 1)
 M2 <- stats::model.matrix(~ as.factor(pupils$secondary_school_id) - 1)
 
 # Some useful things needed later
 tM1xM1 <- crossprod(M1)
-dim(tM1xM1)
 tM2xM2 <- crossprod(M2)
 n <- length(y)
 
@@ -163,29 +165,28 @@ for (i in 1:num_iter) {
   storage$sigma1[i] <- sigma1
   storage$sigma2[i] <- sigma2
   storage$fits[i,] <- M1 %*% tree1 + M2 %*% tree2
-  
-  
+
   # Update tree1
   Rtree1 <- y - M2 %*% tree2
-  prec <- tau * tM1xM1 + diag(1/(sigma1^2), ncol(M1))
   
+  prec <- tau * tM1xM1 + diag(1/(sigma1^2), ncol(M1))
   tree1 <- t(mvnfast::rmvn(1, solve(prec, tau * crossprod(M1, Rtree1)), 
                            solve(prec)))
   
   # # Update tree2
   Rtree2 <- y - M1 %*% tree1
+  
   prec <- tau * tM2xM2 + diag(1/(sigma2^2), ncol(M2))
   tree2 <- t(mvnfast::rmvn(1, 
                            solve(prec, tau * crossprod(M2, Rtree2)), 
                            solve(prec)))
-
-  # # Update tau
+  
+# # Update tau
   S <- sum((y - M1 %*% tree1 - M2 %*% tree2)^2)
   tau <- rgamma(1,
     shape = 0.01 + n / 2,
     rate = 0.01 + S / 2
   )
-   
   # Update sigma1
   repeat {
     # Proposal distribution
@@ -204,7 +205,6 @@ for (i in 1:num_iter) {
 
   accept <- log_alpha >= 0 || log_alpha >= log(stats::runif(1))
   sigma1 <- ifelse(accept, new_sigma1, sigma1)
-
   # Update sigma2
   repeat {
     # Proposal distribution
@@ -223,6 +223,7 @@ for (i in 1:num_iter) {
 
   accept <- log_alpha >= 0 || log_alpha >= log(stats::runif(1))
   sigma2 <- ifelse(accept, new_sigma2, sigma2)
+  sigma2 <- sigma1 <- tau <- 1
 }
 
 # Plot some of the outputs
@@ -244,6 +245,13 @@ plot(storage$sigma2)
 #             n = n()) |>
 #   View() # Almost identical fits
 
-sqrt(mean((pplme - pupils$achievement)^2)) # 0.7978818
-sqrt(mean((model$BUGSoutput$mean$fit - pupils$achievement)^2)) # 0.797759
-sqrt(mean((colMeans(storage$fits) - pupils$achievement)^2)) # 0.7974181
+mean((pplme - pupils$achievement)^2) # 0.7978818
+mean((model$BUGSoutput$mean$fit - pupils$achievement)^2) # 0.797759
+mean((inv_scale(colMeans(storage$fits), y_max, y_min) - pupils$achievement)^2) # 0.7974181
+# pretty much the same
+
+inv_scale <- function(y, max, min) (y + 0.5) * (max - min) + min
+
+
+# I've checked that with all things fixed 
+# we have the same results

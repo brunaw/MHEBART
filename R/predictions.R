@@ -186,16 +186,20 @@ predict_mhebart <- function(newX, group_variables, hebart_posterior,
   out <- list()
   
   # Now loop through iterations and get predictions
-  for(n_g in 1:n_grouping_variables){
+  for (i in 1:n_its) {
     
-    new_groups <- newX[, grouping_variables_names[n_g]]
-    if(!is.vector(new_groups)){
-      new_groups <- dplyr::pull(new_groups, !!grouping_variables_names[n_g])
-    }
+    predictions_all <- rep(0, length = length(y))
     
-    old_groups <- hebart_posterior$groups[grouping_variables_names[n_g]]
-    
-    for (i in 1:n_its) {
+    for(n_g in 1:n_grouping_variables){
+      
+      new_groups <- newX[, grouping_variables_names[n_g]]
+      if(!is.vector(new_groups)){
+        new_groups <- dplyr::pull(new_groups, !!grouping_variables_names[n_g])
+      }
+      
+      old_groups <- hebart_posterior$groups[grouping_variables_names[n_g]]
+      
+      
       # Get current set of trees
       curr_trees <- hebart_posterior$trees[[i]][[n_g]]
       
@@ -204,23 +208,35 @@ predict_mhebart <- function(newX, group_variables, hebart_posterior,
       #                                         newX,
       #                                         single_tree = length(curr_trees) == 1
       # )
-      y_hat_mat[i, ] <- get_group_predictions(trees = curr_trees,
-                                              X = newX_mat,
-                                              groups = new_groups,
-                                              single_tree = length(curr_trees) == 1,
-                                              old_groups = old_groups
+      preds <- get_group_predictions(trees = curr_trees,
+                                     X = newX_mat,
+                                     groups = new_groups,
+                                     single_tree = length(curr_trees) == 1,
+                                     old_groups = old_groups
       )
+      predictions_all <- predictions_all + preds
     }
+    
+    
+    y_hat_mat[i, ] <- predictions_all
+    
     
     # Sort out what to return
     inv_scale <- function(x) (x + 0.5) * (hebart_posterior$y_max - hebart_posterior$y_min) + hebart_posterior$y_min
     out[[n_g]] <- switch(type,
                          all = inv_scale(y_hat_mat),
                          mean = apply(inv_scale(y_hat_mat), 2, "mean"),
-                         median = apply(inv_scale(y_hat_mat), 2, "median")
-    )
+                         median = apply(inv_scale(y_hat_mat), 2, "median"))
+    
+    # out[[n_g]] <- switch(type,
+    #                      all = y_hat_mat,
+    #                      mean = apply(y_hat_mat, 2, "mean"),
+    #                      median = apply(y_hat_mat, 2, "median")
+    #                      
+    # )
     
   }
+  
   
   out <- as.vector(colMeans(do.call(rbind.data.frame, out)))
   

@@ -45,8 +45,8 @@ mhebart <- function(formula,
                      sigma_phi = 1
                    ), # Initial values list
                    MCMC = list(
-                     iter = 25, # Number of iterations
-                     burn = 5, # Size of burn in
+                     iter = 4, # Number of iterations
+                     burn = 0, # Size of burn in
                      thin = 1,
                      sigma_phi_sd = 2
                    ),
@@ -133,58 +133,60 @@ mhebart <- function(formula,
   # --------------------------------------------------------------------
   # Finding a value for the parameters of the prior to tau
   #---------------------------------------------------------------------
-  str_groups <- paste(paste0("+ (1|", grouping_variables_names, ")"), collapse = ' ')
-  lme_form <- paste(paste(c(formula)), str_groups, collapse = '')
-  
-  lme_form <- stats::as.formula(lme_form)
-  data_lme <- dplyr::mutate(data, y = y_scale)
-  my_lme <- lme4::lmer(lme_form, data_lme)
-  # my_lme   <- brms::brm(lme_form, data_lme,
-  #                      silent = TRUE)
-  #res      <- stats::sd(stats::fitted(my_lme)[, "Estimate"] - y_scale)
-  res      <- lme4:::sigma.merMod(my_lme)
-  
-  nu     <- priors$nu         # Parameter 1 for precision
-  lambda <- priors$lambda # Parameter 2 for precision
-  p_inv  <- invgamma::pinvgamma(q = res, shape = nu/2, rate = nu*lambda/2)
-  
-  # Putting high probabilities of the BCART improving a linear model
-  while(p_inv < 0.95){
-    p_inv <- invgamma::pinvgamma(q = res, shape = nu/2, rate = nu*lambda/2)
-    if(p_inv < 0.95){
-      nu = abs(nu + stats::rnorm(1))
-      lambda = abs(lambda + stats::rnorm(1))
-    }
-  }
-  
-  # --------------------------------------------------------------------
-  # Finding a value for the parameters of the prior to the sigma_phi
-  # In this case we need two priors 
-  #---------------------------------------------------------------------
-  shape_sigma_phi <- vector(length = n_grouping_variables)
-  scale_sigma_phi <- vector(length = n_grouping_variables)
-  sigma_phi <- rep(1, length = n_grouping_variables)
-  tau_phi <-  1 / (sigma_phi^2)
-  
-  for(i in 1:n_grouping_variables){
-    str_groups <- paste0("+ (1|", grouping_variables_names[i], ")")
-    lme_form <- paste(paste(c(formula)), str_groups, collapse = '')
-    lme_form <- stats::as.formula(lme_form)
-    data_lme <- dplyr::mutate(data, y = y_scale)
-    my_lme <- lme4::lmer(lme_form, data_lme)
-    random_effect     <- sqrt(as.data.frame(lme4::VarCorr(my_lme))$vcov[1])
-    pr <- parameters::model_parameters(my_lme, effects = "random",
-                                       ci_random = TRUE,
-                                       verbose = FALSE)
-    se <- pr$SE[1]
-    random_effect_var <- se^2
-    
-    if(!is.na(se)){
-      shape_sigma_phi[i]  <-  (random_effect^2)/random_effect_var
-      scale_sigma_phi[i]  <-  random_effect_var/random_effect
-    }
-  }
-    
+  # str_groups <- paste(paste0("+ (1|", grouping_variables_names, ")"), collapse = ' ')
+  # lme_form <- paste(paste(c(formula)), str_groups, collapse = '')
+  # 
+  # lme_form <- stats::as.formula(lme_form)
+  # data_lme <- dplyr::mutate(data, y = y_scale)
+  # my_lme <- lme4::lmer(lme_form, data_lme)
+  # # my_lme   <- brms::brm(lme_form, data_lme,
+  # #                      silent = TRUE)
+  # #res      <- stats::sd(stats::fitted(my_lme)[, "Estimate"] - y_scale)
+  # res      <- lme4:::sigma.merMod(my_lme)
+  # 
+  # nu     <- priors$nu         # Parameter 1 for precision
+  # lambda <- priors$lambda # Parameter 2 for precision
+  # p_inv  <- invgamma::pinvgamma(q = res, shape = nu/2, rate = nu*lambda/2)
+  # 
+  # # Putting high probabilities of the BCART improving a linear model
+  # while(p_inv < 0.95){
+  #   p_inv <- invgamma::pinvgamma(q = res, shape = nu/2, rate = nu*lambda/2)
+  #   if(p_inv < 0.95){
+  #     nu = abs(nu + stats::rnorm(1))
+  #     lambda = abs(lambda + stats::rnorm(1))
+  #   }
+  # }
+  # 
+  # # --------------------------------------------------------------------
+  # # Finding a value for the parameters of the prior to the sigma_phi
+  # # In this case we need two priors 
+  # #---------------------------------------------------------------------
+  # shape_sigma_phi <- vector(length = n_grouping_variables)
+  # scale_sigma_phi <- vector(length = n_grouping_variables)
+  # sigma_phi <- rep(1, length = n_grouping_variables)
+  # tau_phi <-  1 / (sigma_phi^2)
+  # 
+  # for(i in 1:n_grouping_variables){
+  #   str_groups <- paste0("+ (1|", grouping_variables_names[i], ")")
+  #   lme_form <- paste(paste(c(formula)), str_groups, collapse = '')
+  #   lme_form <- stats::as.formula(lme_form)
+  #   data_lme <- dplyr::mutate(data, y = y_scale)
+  #   my_lme <- lme4::lmer(lme_form, data_lme)
+  #   random_effect     <- sqrt(as.data.frame(lme4::VarCorr(my_lme))$vcov[1])
+  #   pr <- parameters::model_parameters(my_lme, effects = "random",
+  #                                      ci_random = TRUE,
+  #                                      verbose = FALSE)
+  #   se <- pr$SE[1]
+  #   random_effect_var <- se^2
+  #   
+  #   if(!is.na(se)){
+  #     shape_sigma_phi[i]  <-  (random_effect^2)/random_effect_var
+  #     scale_sigma_phi[i]  <-  random_effect_var/random_effect
+  #   }
+  # }
+  #   
+  shape_sigma_phi <- c(1, 1)
+  shape_sigma_phi <- c(1, 1)
 
   #---------------------------------------------------------------------
   # Get the group objects
@@ -320,6 +322,7 @@ mhebart <- function(formula,
         if (num_trees > 1) {
           seq_trees <- seq(1:n_grouping_variables)[-n_g]
           current_predictions_all <- rep(0, length = length(y))
+          
           for(n_g_i in seq_trees){ 
             groups <- data[, grouping_variables_names[n_g_i]]
             if(!is.vector(groups)){
@@ -411,7 +414,7 @@ mhebart <- function(formula,
           R = current_partial_residuals,
           groups,
           tau,
-          tau_phi = tau_phi[n_g],
+          sigma_phi = 1,
           M,
           num_trees
         )
@@ -442,13 +445,15 @@ mhebart <- function(formula,
         single_tree = num_trees == 1,
         old_groups = groups
       )
-      
+      #mean(predictions_all)
       predictions_all <- predictions_all + preds 
     }
     
-    #mean(predictions_all)
+    
+    
     # Calculate full set of predictions
     #bb <- y_scale - predictions_all
+    summary(bb)
 
     mse <- mean((y_scale - predictions_all)^2)
     # Update tau
@@ -459,6 +464,7 @@ mhebart <- function(formula,
       nu = 0.01,
       lambda  = 1
     )
+    #tau <- 1
     
     sigma <- 1 / sqrt(tau)
 
@@ -496,6 +502,7 @@ mhebart <- function(formula,
           num_trees = initial, sigma_phi_sd
         )
       }
+      #sigma_phi[n_g] <- 1
       tau_phi[n_g] <- 1 / (sigma_phi[n_g]^2)
       
     }
@@ -518,6 +525,7 @@ mhebart <- function(formula,
     trees = tree_store,
     sigma = sigma_store,
     y_hat = (y_hat_store + 0.5) * (max(y) - min(y)) + min(y),
+    #y_hat = y_scale, 
     #log_lik = log_lik_store,
     sigma_phi = sigma_phi_store,
     tau = tau_store, 
@@ -537,6 +545,7 @@ mhebart <- function(formula,
 
   # RMSE calculation
   names(data)[names(data) %in% grouping_variables_names] <- group_variables
+  
   pred <- predict_mhebart(
     newX = data, group_variables = group_variables, 
     hebart_posterior = result, type = "mean")
