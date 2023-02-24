@@ -188,7 +188,7 @@ predict_mhebart <- function(newX, group_variables, hebart_posterior,
   # Now loop through iterations and get predictions
   for (i in 1:n_its) {
     
-    predictions_all <- rep(0, length = length(y))
+    predictions_all <- rep(0, length = nrow(newX))
     
     for(n_g in 1:n_grouping_variables){
       

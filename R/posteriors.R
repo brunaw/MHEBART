@@ -122,11 +122,11 @@ simulate_mu_hebart <- function(tree, R, tau, tau_phi, tau_mu, M, num_trees) {
     ones <- rep(1, nj[i])
     Prec_bit <- t(ones)%*%solve(Psi_R, ones) + tau_mu
     mean <- t(ones)%*%solve(Psi_R, R_j) / Prec_bit
-    #tree$tree_matrix[which_terminal[i], "mu"] <- stats::rnorm(1,
-    #                                                          mean,
-    #                                                          sd = 1/sqrt(Prec_bit))
+    tree$tree_matrix[which_terminal[i], "mu"] <- stats::rnorm(1,
+                                                             mean,
+                                                             sd = 1/sqrt(Prec_bit))
     #For now
-    tree$tree_matrix[which_terminal[i], "mu"] <- 0
+    #tree$tree_matrix[which_terminal[i], "mu"] <- 0
   }
   tree$tree_matrix[which_non_terminal, "mu"] <- NA
   
@@ -160,13 +160,11 @@ simulate_phi_hebart <- function(tree, R, groups, tau, sigma_phi, M, num_trees) {
   # Get node sizes for each terminal node
   nj <- tree$tree_matrix[which_terminal, "node_size"]
   
-  #num_groups <- length(unique(groups))
-  num_trees = 1
   # Get the group means in each terminal node
   # Doing this with loops but probably can be faster
   for (i in 1:length(nj)) {
     
-    set.seed(123)
+    #set.seed(123)
     curr_R <- R[tree$node_indices == which_terminal[i]]
     curr_mu <- tree$tree_matrix[which_terminal[i], "mu"]
     curr_M <- M[tree$node_indices == which_terminal[i], , drop = FALSE]

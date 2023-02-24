@@ -68,6 +68,7 @@ sim_friedman <- function(n,
 #' @param groups The groups vector 
 
 fix_group_names <- function(groups){
+  options(warn = -1)
   group_names <- unique(groups)
   num_groups <- as.numeric(group_names)
   if(sum(is.na(num_groups)) == 0){
