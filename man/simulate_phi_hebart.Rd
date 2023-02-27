@@ -4,7 +4,7 @@
 \alias{simulate_phi_hebart}
 \title{Simulate mu_js}
 \usage{
-simulate_phi_hebart(tree, R, groups, tau, tau_phi, M, num_trees)
+simulate_phi_hebart(tree, R, groups, tau, sigma_phi, M, num_trees)
 }
 \arguments{
 \item{tree}{The current tree}
@@ -15,11 +15,11 @@ simulate_phi_hebart(tree, R, groups, tau, tau_phi, M, num_trees)
 
 \item{tau}{The current value of tau}
 
-\item{tau_phi}{The current value of tau_phi}
-
 \item{M}{The group allocation matrix}
 
 \item{num_trees}{The  number of trees}
+
+\item{tau_phi}{The current value of tau_phi}
 }
 \description{
 Simulates mu_j for each group

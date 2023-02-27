@@ -296,8 +296,8 @@ update_sigma_phi <- function(y, S1, S2, sigma_phi, tau_mu, tau,
   #                                   scale = scale_sigma_phi, log = TRUE)
   
   S1 <- unique(S1)
-  post_current <- sum(dnorm(S1, 0, new_sigma_phi, log = TRUE)) + LaplacesDemon::dhalft(new_sigma_phi, scale = 10, nu = 1, log = TRUE)
-  post_candidate <- sum(dnorm(S1, 0, sigma_phi, log = TRUE)) + LaplacesDemon::dhalft(sigma_phi, scale = 10, nu = 1, log = TRUE)
+  post_current <- sum(stats::dnorm(S1, 0, new_sigma_phi, log = TRUE)) + LaplacesDemon::dhalft(new_sigma_phi, scale = 10, nu = 1, log = TRUE)
+  post_candidate <- sum(stats::dnorm(S1, 0, sigma_phi, log = TRUE)) + LaplacesDemon::dhalft(sigma_phi, scale = 10, nu = 1, log = TRUE)
   #log.alpha <- (post_candidate - post_current) + (prior_candidate - prior_current) + log_rat
   log.alpha <- (post_current - post_candidate) + log_rat
 
