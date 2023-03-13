@@ -9,6 +9,7 @@ library(mhebart)
 # Create this data set
 simulate_tree <- function(x, n = 500){
   #set.seed(123)
+  
   x <- runif(n)
   groups <- factor(rep(1:3, length = n))
   mu <- rep(0, n)
@@ -164,7 +165,7 @@ data_model3 |>
   dplyr::select(rmse_hm, rmse_lme) |> 
   tidyr::pivot_longer(cols = c(rmse_hm, rmse_lme)) |> 
   mutate(name = str_remove(name, "rmse\\_"), 
-         name = str_replace(name, "hm", "MHEBART"),
+         name = str_replace(name, "hm", "Crosse-RE HEBART"),
          name = str_to_upper(name)) |> 
   ggplot(aes(y = value, x = name)) +
   geom_boxplot(fill = "#F96209", alpha = 0.7) +

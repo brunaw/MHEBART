@@ -20,7 +20,7 @@ load("data/pupils.Rdata")
 
 
 pupils_crossed = lmer(
-  achievement ~ 1
+  achievement ~ sex + ses
   + (1|primary_school_id) 
   + (1|secondary_school_id),
   data = pupils
@@ -29,7 +29,7 @@ pupils_crossed = lmer(
 pplme <- predict(pupils_crossed, pupils)
 rmse_lmer <- mean((pplme - pupils$achievement)^2) # 6.64
 rmse_lmer
-
+summary(pupils_crossed)
 # pupils |> 
 #   mutate(pred = pp) |> 
 #   group_by(primary_school_id, secondary_school_id) |> 
@@ -39,7 +39,7 @@ rmse_lmer
 #   View()
 
 num_trees <- 4
-
+pupils
 hb_model <- mhebart(
   formula = achievement ~ sex + ses,
   data = pupils,
@@ -57,28 +57,27 @@ hb_model <- mhebart(
   ), 
   inits = list(tau = 1,
                sigma_phi = 0.01),
-  MCMC = list(iter = 100, 
-              burn = 0, 
+  MCMC = list(iter = 30, 
+              burn = 10, 
               thin = 1,
-              sigma_phi_sd = 1), 
-  stumps = TRUE
+              sigma_phi_sd = 1)
 )
-#hb_model$trees[[2]]
-#hb_model$mse
-
+hb_model$trees[[1]]
+hb_model$mse
 pp <- predict_mhebart(newX = pupils, 
                       group_variables = c("primary_school_id", "secondary_school_id"),
                       hebart_posterior  = hb_model, 
                       type = "mean")
 
 rmse <- mean((pp - pupils$achievement)^2)
-
-rmse <- mean((pp - y_scale)^2)
 rmse
-y <- pupils$achievement
-y_min <- min(y)
-y_max <- max(y)
-y_scale <- (y - y_min)/(y_max - y_min) - 0.5
+
+# rmse <- mean((pp - y_scale)^2)
+# rmse
+# y <- pupils$achievement
+# y_min <- min(y)
+# y_max <- max(y)
+# y_scale <- (y - y_min)/(y_max - y_min) - 0.5
 
 # mse -> 0.014
 # curr_trees = hb_model$trees[[20]]
@@ -109,12 +108,12 @@ y_scale <- (y - y_min)/(y_max - y_min) - 0.5
 
 
 
-# pupils |>
-#   mutate(pred = pp) |>
-#   filter(secondary_school_id %in% (1:5), primary_school_id %in% (1:5)) |>
-#   ggplot(aes(y = achievement, x = ses)) +
-#   geom_point() +
-#   geom_point(aes(y = pred), colour = 'red') +
-#   facet_wrap(~secondary_school_id+primary_school_id)
+pupils |>
+  #mutate(pred = pp) |>
+  filter(secondary_school_id %in% (1:5)) |>
+  ggplot(aes(y = achievement, x = ses)) +
+  geom_point() +
+  #geom_point(aes(y = pred), colour = 'red') +
+  facet_wrap(~secondary_school_id+primary_school_id)
 
 #-----------------------------------------------------------------------

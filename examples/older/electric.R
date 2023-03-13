@@ -1,6 +1,6 @@
 library(tidyverse)
 library(firatheme)
-devtools::load_all(".")
+library(mhebart)
 
 
 url <- "http://www.stat.columbia.edu/~gelman/arm/examples/electric.company/electric.dat"
@@ -29,7 +29,7 @@ pplme <- predict(lme_ss, test)
 rmse_lmer <- sqrt(mean((pplme - test$y)^2)) # 6.64
 rmse_lmer
 
-num_trees <- 20
+num_trees <- 10
 
 hb_model <- mhebart(
   formula = y ~ treatment,
@@ -48,12 +48,12 @@ hb_model <- mhebart(
   ), 
   inits = list(tau = 1,
                sigma_phi = 0.01),
-  MCMC = list(iter = 2500, 
-              burn = 500, 
+  MCMC = list(iter = 1500, 
+              burn = 300, 
               thin = 1,
               sigma_phi_sd = 1)
 )
-hb_model
+
 
 pp <- predict_mhebart(newX = test, 
                       group_variables = c("group_1", "group_2"),

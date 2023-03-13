@@ -1,14 +1,17 @@
-#-------------------------------------------------------
-# A model fit for the gapminder data using the year as a 
-# categorical feature ----------------------------------
-#-------------------------------------------------------
+# In case you're installing, building, or removing the package:
+# remove.packages("hebartBase")
+# devtools::document()
+# devtools::check()
+# devtools::install()
+
 # Exemplifying:
 # Package loading  ----------------------------------
 library(magrittr)
 library(ggplot2)
 library(tidymodels)
 library(firatheme)
-library(mhebart)
+#library(mhebart)
+devtools::load_all(".")
 load("data/gapminder_recent_g20.RData")
 
 # Dataset split  ------------------------------------
@@ -18,18 +21,18 @@ set.seed(2022)
 df_real     <- gapminder_recent_g20 %>% 
   select(year, country, lifeExp, year0, decade0, continent, gdpPercap) |> 
   set_names(c('X1', 'country', 'y', "X2", "X3", "continent", "X4"))
-View(df_real)
+
 df_real$X4 <- log(df_real$X4)
 conts <- c("Americas", "Europe", "Africa")
 df_real <- df_real |> filter(continent %in% conts)
 years       <- unique(df_real$X1)
 
 df_real$year_cat <-  cut(df_real$X1, 
-                         breaks=seq(1949, 2020, by = 10),
-                         labels=paste("year", seq(1950, 2018, by = 10)))
+                   breaks=seq(1949, 2020, by = 10),
+                   labels=paste("year", seq(1950, 2018, by = 10)))
 df_real$X1 |> table()
-#-------------------------------------------------------------------------
-#-------------------------------------------------------------------------
+#df_real$year_cat <- as.factor(df_real$X1)
+
 
 run_gapminder <- function(x){
   to_remove   <- sample(years, 15)
@@ -63,7 +66,8 @@ run_gapminder <- function(x){
                                   thin = 1,
                                   sigma_phi_sd = 2)
   )
-
+  
+  saveRDS(hb_model, paste0("models_gapminder", x, ".rds")) 
   pp <- predict_mhebart(newX = test, group_variables, 
                         hebart_posterior = hb_model, type = "mean")
   
@@ -74,61 +78,31 @@ run_gapminder <- function(x){
   pplme <- predict(lme_ss, test)
   rmse_lmer <- sqrt(mean((pplme - test$y)^2)) # 3.991818
   
-  return(list(train = train, test = test, 
-              hb_model = hb_model, rmse_mhebart = rmse_mhebart, 
-              pred_hebart = pp, 
-              lme_model = lme_ss, rmse_lme = rmse_lmer, 
-              pred_lme = pplme
-  )) 
+ return(list(train = train, test = test, 
+             hb_model = hb_model, rmse_mhebart = rmse_mhebart, 
+             pred_hebart = pp, 
+             lme_model = lme_ss, rmse_lme = rmse_lmer, 
+             pred_lme = pplme
+             )) 
 }
-
 runs <- tibble(
   all = map(1:10, run_gapminder)
 )
-
 saveRDS(runs, "models_gapminder.rds")
-#----------------------------------------------------------------------------
-#----------------------------------------------------------------------------
-# runs <- models_gapminder
 
-new_lme <- function(train, test){
-  
-  lme_ss <- me_ss <- lme4::lmer(y ~ X2 + X4 + X3 + (X2 + X4 + X3|country) + (X2 + X4 + X3|year_cat), train)
-  pplme <- predict(lme_ss, test)
-  rmse_lmer <- sqrt(mean((pplme - test$y)^2)) # 3.991818
-  
-  return(list(lme_model_new = lme_ss, 
-              rmse_lme_new = rmse_lmer, 
-              pred_lme_new = pplme
-  )) 
-}
-
-
-runs2 <- runs |> 
-  mutate(train = map(all, "train"), 
-         test = map(all, "test"), 
-         new_lme = map2(train, test, new_lme)
-  ) 
-
-runs2 <-  runs2 |> 
+runs2 <-  runs |> 
   mutate(
-    rmse_lme = map_dbl(new_lme,"rmse_lme_new"),
+    rmse_lme = map_dbl(all,"rmse_lme"),
     rmse_mhebart = map_dbl(all,"rmse_mhebart"),
-    pred_lme = map(new_lme, "pred_lme_new"),
+    pred_lme = map(all, "pred_lme"),
     pred_hebart = map(all, "pred_hebart"),
     id = 1:n(), 
     test = map(all, "test")
-  )
-runs3$rmse_lme
-runs3$rmse_mhebart
-
-#----------------------------------------------------------------------------
-#----------------------------------------------------------------------------
-runs3 <-  runs2  |> 
+  )  |> 
   unnest(pred_lme, pred_hebart, test) |> 
-  dplyr::select(y, pred_hebart, pred_lme, rmse_lme, rmse_mhebart, country, X1, year_cat) |> 
+  select(y, pred_hebart, pred_lme, rmse_lme, rmse_mhebart, country, X1, year_cat) |> 
   mutate(sd_lme = sd(pred_lme)/sqrt(n()), 
-         sd_mhebart = sd(pred_hebart)/sqrt(n())) |> 
+         sd_mhebart = sd(pred_hebart)/sqrt(n()))|> 
   group_by(X1, country, year_cat) |> 
   summarise(
     y = mean(y), 
@@ -142,15 +116,6 @@ runs3 <-  runs2  |>
 
 # -------------------------------------------------------------
 # Plots -------------------------------------------------------
-avg_rmse_lme <- mean(runs2$rmse_lme)
-upp_lme <- avg_rmse_lme + 1.96 * sd(runs2$rmse_lme)/sqrt(10)
-low_lme <- avg_rmse_lme - 1.96 * sd(runs2$rmse_lme)/sqrt(10)
-
-
-avg_rmse <- mean(runs2$rmse_mhebart)
-upp <- avg_rmse + 1.96 * sd(runs2$rmse_mhebart)/sqrt(10)
-low <- avg_rmse - 1.96 * sd(runs2$rmse_mhebart)/sqrt(10)
-
 
 BottleRocket2 = c("#FAD510", "#CB2314", "#0E86D4",
                            "#1E1E1E", "#18A558")
@@ -161,8 +126,8 @@ selected_countries <- c(
   "Argentina", "France", "United States"
 )
 
-
-runs3 |>  
+runs2 |> View()
+runs2 |>  
   filter(country %in% selected_countries) |> 
   ggplot(aes(x = X1, y = pred_mhebart_mean)) +
   facet_wrap(~country, ncol = 2, scales = 'free_y') +
@@ -177,32 +142,96 @@ runs3 |>
   geom_line(colour = BottleRocket2[3], size = 0.7) +
   geom_point(aes(x = X1, y = y, colour =  'black'), size = 0.25) + 
   geom_point(aes(x = X1, y = y), 
-             colour =  'black', size = 0.25) + 
+                 colour =  'black', size = 0.25) + 
   scale_x_continuous(breaks = scales::pretty_breaks(n = 7)) +
   scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) +
   labs(y = "Life expectancy (in years)", 
        x = 'Passage of time', 
-       title = 
-         
-         paste0("Average predictions per group for Crossed-RE HEBART and LME \n", 
-                "Crossed-RE HEBART Test RMSE: ", 
-               paste0(round(avg_rmse, 2), " [", round(low, 2), ",", round(upp, 2), "]"), "\n", 
-               "LME Test RMSE: ", 
-               paste0(round(avg_rmse_lme, 2), " [", round(low_lme, 2), ",", round(upp_lme, 2), "]"), "\n"
-                )) + 
+       title = "Average predictions per group for MHEBART and LME") + 
   theme_linedraw(12) +
   scale_colour_manual(
     name="Source:",
     values = c("black", BottleRocket2[3], BottleRocket2[2]), 
-    labels = c("Data", "Crossed-RE HEBART", "LME"), 
+    labels = c("Data", "MHEBART", "LME"), 
     
     guide = guide_legend(override.aes = list(
       size = c(2, 2, 2)))) +
   theme(panel.spacing.x = unit(0.5, "lines"), 
         legend.position = "bottom")
-
+    
 ggsave(file = "images/predictions_plot_gapminder_mhebart.png",
        width = 8, height = 8)
+
+
+  test |> 
+    ggplot(aes(X1, y)) +
+    geom_point() +
+    geom_line(aes(y = preds), colour = 'red') + 
+    geom_point(aes(y = preds), colour = 'red') +
+  geom_line(aes(y = pplme), colour = 'blue') + 
+  geom_point(aes(y = pplme), colour = 'blue') + 
+  facet_wrap(~country+continent) +
+  ggtitle(paste0("MHEBART RMSE:", round(rmse_mhebart, 2), 
+                 ",\nLMER RMSE:", round(rmse_lmer, 2)), 
+          "\n red dots: MHEBART prediction, blue dots: LMER prediction")
+
+# Comparison to BART --------------------------
+# bart_0 = dbarts::bart2(y ~ X1 + X4 + X3, 
+#                        data = train,
+#                        test = test,
+#                        keepTrees = TRUE)
+# ppbart <- bart_0$yhat.test.mean
+# sqrt(mean((ppbart - test$y)^2)) # 7.944524
+# cor(ppbart, test$y) #    0.698455
+# 
+# ppbart <- bart_0$yhat.train.mean
+# sqrt(mean((ppbart - train$y)^2)) # 0.8950348- 100 trees
+
+# BART+Group
+# bart_0 = dbarts::bart2(y ~ X1 + X2 + X3 + group, 
+#                        data = train,
+#                        test = test,
+#                        keepTrees = TRUE)
+# ppbart <- bart_0$yhat.test.mean
+# sqrt(mean((ppbart - test$y)^2)) # 0.9425852
+# cor(ppbart, test$y) #    0.99683
+# 
+# ppbart <- bart_0$yhat.train.mean
+# sqrt(mean((ppbart - train$y)^2)) # 0.3275252
+
+# Comparison to LME --------------------------
+# Average predictions 
+preds_y <- data.frame(test, pred = pp, pred_lme = pplme)
+
+preds_y |> 
+  filter(group %in% c("China", "South Africa", "Russia", 
+                      "United States", "Mexico", 
+                      "Canada")) |> 
+  ggplot(aes(x = X1, y = y)) +
+  geom_point(colour = "gray") +
+  geom_line(aes(y = pred, colour= "#75E6DA"), size = 1.3) +
+  geom_line(aes(y = pred), colour= "#75E6DA", size = 1,
+            alpha = 0.7) +
+  geom_line(aes(y = pred_lme, colour= "#F96209"),  size = 1.3) +
+  geom_line(aes(y = pred_lme), colour= "#F96209",  size = 1, 
+            alpha = 0.7) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 7)) +
+  labs(x = "Life expectancy", 
+       y = 'Predictions', 
+       #title = paste0("RMSE\nHE-BART: ", rss_hbart, ", LME: ", rss_lme)
+  ) + 
+  facet_wrap(~group, scales = "free", ncol = 2) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 5)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 5)) +
+  theme_linedraw(14) +
+  scale_colour_manual(
+    name="Source:",
+    values=c(Data="gray", 
+             `HEBART Prediction`="#75E6DA", 
+             `LME Prediction`= '#F96209'), 
+    guide = guide_legend(override.aes = list(
+      size = c(3, 3, 3), shape = c(16, 16, 16)))) + 
+  theme_fira()
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 
